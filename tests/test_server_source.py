@@ -105,7 +105,9 @@ def test_state_endpoint_completed_after_pipeline(running_server, tmp_path: Path)
                              "input_thresh": "-20", "target_offset": "0"}), \
          patch("engine.pipeline.normalize.run_ffmpeg", side_effect=_ffmpeg_writes_output), \
          patch("engine.pipeline.enhance.enhance_audio_file", side_effect=_enhance_writes), \
-         patch("engine.pipeline.vad.vad_audio_file", return_value=[{"start": 0.0, "end": 1.0}]):
+         patch("engine.pipeline.vad.vad_audio_file", return_value=[{"start": 0.0, "end": 1.0}]), \
+         patch("engine.pipeline.transcribe.transcribe_audio_file", return_value=[]), \
+         patch("engine.pipeline.align.align_segments", return_value=[]):
         probe_mock.return_value = [{"index": 0, "codec_name": "aac", "sample_rate": 48000, "channels": 1, "duration_seconds": 1.0}]
         requests.post(
             f"http://127.0.0.1:{running_server}/api/source/process",
