@@ -171,4 +171,28 @@ describe('FileListItem stage-aware status', () => {
         );
         expect(screen.getByText(/detecting speech/i)).toBeDefined();
     });
+
+    it('renders "transcribing…" for running:transcribe', () => {
+        render(
+            <FileListItem
+                file={sampleFile}
+                selected={false}
+                onSelect={() => {}}
+                status="running:transcribe"
+            />,
+        );
+        expect(screen.getByText(/transcribing/i)).toBeDefined();
+    });
+
+    it('renders "aligning words…" for running:align', () => {
+        render(
+            <FileListItem
+                file={sampleFile}
+                selected={false}
+                onSelect={() => {}}
+                status="running:align"
+            />,
+        );
+        expect(screen.getByText(/aligning words/i)).toBeDefined();
+    });
 });
