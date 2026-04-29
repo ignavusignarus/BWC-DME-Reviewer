@@ -150,3 +150,76 @@ def test_probe_audio_tracks_handles_missing_optional_fields(tmp_path: Path, monk
     with patch("engine.ffmpeg.subprocess.run", return_value=fake_completed):
         tracks = probe_audio_tracks(Path("clean.wav"))
     assert tracks[0]["duration_seconds"] is None
+
+
+from engine.ffmpeg import run_loudnorm_measure
+
+
+def test_run_loudnorm_measure_parses_json_from_stderr(tmp_path: Path, monkeypatch):
+    fake = tmp_path / ("ffmpeg.exe" if os.name == "nt" else "ffmpeg")
+    fake.write_bytes(b"")
+    monkeypatch.setenv("BWC_CLIPPER_FFMPEG_DIR", str(tmp_path))
+
+    # ffmpeg's loudnorm filter writes a JSON object to stderr after the audio
+    # processing summary. Real-world output looks like this:
+    fake_stderr = """\
+ffmpeg version ... Copyright (c) ...
+  built with gcc ...
+[Parsed_loudnorm_0 @ 0x...] Loudnorm completed
+[Parsed_loudnorm_0 @ 0x...]
+{
+        "input_i" : "-12.36",
+        "input_tp" : "-0.31",
+        "input_lra" : "8.20",
+        "input_thresh" : "-22.36",
+        "output_i" : "-15.12",
+        "output_tp" : "-1.50",
+        "output_lra" : "9.80",
+        "output_thresh" : "-25.12",
+        "normalization_type" : "linear",
+        "target_offset" : "-1.20"
+}
+"""
+    fake_completed = MagicMock(returncode=0, stdout="", stderr=fake_stderr)
+    with patch("engine.ffmpeg.subprocess.run", return_value=fake_completed):
+        measured = run_loudnorm_measure(Path("input.wav"))
+
+    assert measured == {
+        "input_i": "-12.36",
+        "input_tp": "-0.31",
+        "input_lra": "8.20",
+        "input_thresh": "-22.36",
+        "target_offset": "-1.20",
+    }
+
+
+def test_run_loudnorm_measure_raises_on_missing_json(tmp_path: Path, monkeypatch):
+    fake = tmp_path / ("ffmpeg.exe" if os.name == "nt" else "ffmpeg")
+    fake.write_bytes(b"")
+    monkeypatch.setenv("BWC_CLIPPER_FFMPEG_DIR", str(tmp_path))
+
+    fake_completed = MagicMock(returncode=0, stdout="", stderr="ffmpeg version ...\nno json here\n")
+    with patch("engine.ffmpeg.subprocess.run", return_value=fake_completed):
+        with pytest.raises(RuntimeError, match="loudnorm.*JSON"):
+            run_loudnorm_measure(Path("input.wav"))
+
+
+def test_run_loudnorm_measure_invokes_ffmpeg_with_correct_filter(tmp_path: Path, monkeypatch):
+    fake = tmp_path / ("ffmpeg.exe" if os.name == "nt" else "ffmpeg")
+    fake.write_bytes(b"")
+    monkeypatch.setenv("BWC_CLIPPER_FFMPEG_DIR", str(tmp_path))
+
+    valid_stderr = '{"input_i":"-12","input_tp":"-1","input_lra":"5","input_thresh":"-20","target_offset":"0"}'
+    fake_completed = MagicMock(returncode=0, stdout="", stderr=valid_stderr)
+    with patch("engine.ffmpeg.subprocess.run", return_value=fake_completed) as run_mock:
+        run_loudnorm_measure(Path("input.wav"))
+
+    cmd = run_mock.call_args[0][0]
+    af_idx = cmd.index("-af")
+    assert "loudnorm=I=-16" in cmd[af_idx + 1]
+    assert "LRA=11" in cmd[af_idx + 1]
+    assert "TP=-1.5" in cmd[af_idx + 1]
+    assert "print_format=json" in cmd[af_idx + 1]
+    # measurement pass writes to null sink
+    assert "-f" in cmd
+    assert "null" in cmd
