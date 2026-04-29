@@ -10,4 +10,5 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('electronAPI', {
     getEngineUrl: () => ipcRenderer.invoke('get-engine-url'),
     getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+    pickFolder: () => ipcRenderer.invoke('pick-folder'),
 });
