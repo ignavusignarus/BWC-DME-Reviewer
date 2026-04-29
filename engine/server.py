@@ -10,11 +10,34 @@ import logging
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from typing import Callable
+from urllib.parse import parse_qs, urlsplit
 
+from engine.pipeline.runner import PipelineRunner
 from engine.project import open_project
 from engine.version import get_version
 
 logger = logging.getLogger("bwc-clipper.server")
+
+
+# Module-level singleton runner shared across all request handler instances
+# (BaseHTTPRequestHandler is instantiated per request, so we cannot store the
+# runner on `self`). Tests reset this between cases via reset_pipeline_runner().
+_RUNNER: PipelineRunner | None = None
+
+
+def get_pipeline_runner() -> PipelineRunner:
+    global _RUNNER
+    if _RUNNER is None:
+        _RUNNER = PipelineRunner()
+    return _RUNNER
+
+
+def reset_pipeline_runner() -> None:
+    """Test-only hook: discards any in-flight jobs and resets the runner."""
+    global _RUNNER
+    if _RUNNER is not None:
+        _RUNNER.shutdown()
+    _RUNNER = None
 
 
 class BWCRequestHandler(BaseHTTPRequestHandler):
@@ -32,19 +55,33 @@ class BWCRequestHandler(BaseHTTPRequestHandler):
     def _post_routes(self) -> dict[str, Callable[[dict], tuple[int, dict]]]:
         return {
             "/api/project/open": self._handle_project_open,
+            "/api/source/process": self._handle_source_process,
         }
 
     def do_GET(self):
-        handler = self._get_routes().get(self.path)
-        if handler is None:
-            self._send_json(404, {"error": "not found", "path": self.path})
+        split = urlsplit(self.path)
+        # Static GET routes (no query params consulted)
+        handler = self._get_routes().get(split.path)
+        if handler is not None:
+            try:
+                status, body = handler()
+                self._send_json(status, body)
+            except Exception as exc:  # pragma: no cover
+                logger.exception("GET handler crashed for %s", self.path)
+                self._send_json(500, {"error": "internal", "detail": str(exc)})
             return
-        try:
-            status, body = handler()
-            self._send_json(status, body)
-        except Exception as exc:  # pragma: no cover - defensive
-            logger.exception("GET handler crashed for %s", self.path)
-            self._send_json(500, {"error": "internal", "detail": str(exc)})
+
+        # Query-driven routes
+        if split.path == "/api/source/state":
+            try:
+                status, body = self._handle_source_state(parse_qs(split.query))
+                self._send_json(status, body)
+            except Exception as exc:  # pragma: no cover
+                logger.exception("/api/source/state crashed")
+                self._send_json(500, {"error": "internal", "detail": str(exc)})
+            return
+
+        self._send_json(404, {"error": "not found", "path": split.path})
 
     def do_POST(self):
         handler = self._post_routes().get(self.path)
@@ -109,6 +146,28 @@ class BWCRequestHandler(BaseHTTPRequestHandler):
         except NotADirectoryError:
             return 400, {"error": "path is not a directory", "path": path_str}
         return 200, manifest
+
+    def _handle_source_process(self, body: dict) -> tuple[int, dict]:
+        folder = body.get("folder")
+        source = body.get("source")
+        if not isinstance(folder, str) or not folder:
+            return 400, {"error": "missing 'folder' field"}
+        if not isinstance(source, str) or not source:
+            return 400, {"error": "missing 'source' field"}
+        runner = get_pipeline_runner()
+        runner.submit_extract(Path(folder), Path(source))
+        status = runner.get_status(Path(folder), Path(source))
+        return 200, {"status": status}
+
+    def _handle_source_state(self, query: dict) -> tuple[int, dict]:
+        folder_list = query.get("folder", [])
+        source_list = query.get("source", [])
+        if not folder_list or not source_list:
+            return 400, {"error": "missing 'folder' or 'source' query parameter"}
+        status = get_pipeline_runner().get_status(
+            Path(folder_list[0]), Path(source_list[0])
+        )
+        return 200, {"status": status}
 
     # ── Response helper ──
 

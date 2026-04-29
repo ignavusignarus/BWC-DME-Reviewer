@@ -1,0 +1,20 @@
+{
+    "_comment": "FFmpeg + ffprobe download sources for BWC Clipper. Windows-only for V1; macOS arrives in packaging milestone.",
+    "win64": {
+        "sources": [
+            {
+                "label": "gyan.dev",
+                "url": "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip",
+                "sha256": null,
+                "format": "zip"
+            },
+            {
+                "label": "GitHub BtbN",
+                "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip",
+                "sha256": null,
+                "format": "zip"
+            }
+        ],
+        "note": "sha256 null = no verification yet. After first successful download, capture the hash and pin it here."
+    }
+}

@@ -1,21 +1,27 @@
-import React, { useState } from 'react';
-import { apiPost } from './api.js';
+import React, { useEffect, useRef, useState } from 'react';
+import { apiPost, apiGet } from './api.js';
 import EmptyState from './components/EmptyState.jsx';
 import ProjectView from './components/ProjectView.jsx';
+
+const POLL_INTERVAL_MS = 1000;
+const ACTIVE_STATUSES = new Set(['queued', 'running']);
 
 export default function EditorApp() {
     const [manifest, setManifest] = useState(null);
     const [selectedPath, setSelectedPath] = useState(null);
+    const [statuses, setStatuses] = useState({});
     const [error, setError] = useState(null);
+    const pollHandle = useRef(null);
 
     async function openFolder() {
         setError(null);
         const folderPath = await window.electronAPI.pickFolder();
-        if (!folderPath) return; // user cancelled
+        if (!folderPath) return;
         try {
             const result = await apiPost('/api/project/open', { path: folderPath });
             setManifest(result);
             setSelectedPath(null);
+            setStatuses({});
         } catch (err) {
             setError(err.message);
         }
@@ -24,12 +30,53 @@ export default function EditorApp() {
     function closeProject() {
         setManifest(null);
         setSelectedPath(null);
+        setStatuses({});
         setError(null);
+        stopPolling();
     }
 
-    function selectFile(file) {
+    async function selectFile(file) {
         setSelectedPath(file.path);
+        setStatuses((s) => ({ ...s, [file.path]: 'queued' }));
+        try {
+            const resp = await apiPost('/api/source/process', {
+                folder: manifest.folder,
+                source: file.path,
+            });
+            setStatuses((s) => ({ ...s, [file.path]: resp.status }));
+            if (ACTIVE_STATUSES.has(resp.status)) {
+                startPolling(file.path);
+            }
+        } catch (err) {
+            setStatuses((s) => ({ ...s, [file.path]: 'failed' }));
+            setError(err.message);
+        }
     }
+
+    function startPolling(path) {
+        stopPolling();
+        pollHandle.current = setInterval(async () => {
+            try {
+                const params = new URLSearchParams({ folder: manifest.folder, source: path });
+                const resp = await apiGet(`/api/source/state?${params.toString()}`);
+                setStatuses((s) => ({ ...s, [path]: resp.status }));
+                if (!ACTIVE_STATUSES.has(resp.status)) {
+                    stopPolling();
+                }
+            } catch (err) {
+                console.warn('[poll] state fetch failed:', err);
+            }
+        }, POLL_INTERVAL_MS);
+    }
+
+    function stopPolling() {
+        if (pollHandle.current) {
+            clearInterval(pollHandle.current);
+            pollHandle.current = null;
+        }
+    }
+
+    useEffect(() => () => stopPolling(), []);
 
     return (
         <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -46,6 +93,7 @@ export default function EditorApp() {
                     selectedPath={selectedPath}
                     onSelectFile={selectFile}
                     onCloseProject={closeProject}
+                    statuses={statuses}
                 />
             )}
         </div>

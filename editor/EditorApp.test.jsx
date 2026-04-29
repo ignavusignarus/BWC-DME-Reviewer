@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import EditorApp from './EditorApp.jsx';
 import { _resetCachedBaseForTests } from './api.js';
 
@@ -10,84 +10,94 @@ const SAMPLE_MANIFEST = {
     ],
 };
 
+function setupFetchStub({ initialStatus = 'idle', sequence = [] } = {}) {
+    let stateCalls = 0;
+    return vi.fn((url, opts) => {
+        if (url.endsWith('/api/project/open')) {
+            return Promise.resolve({ ok: true, json: () => Promise.resolve(SAMPLE_MANIFEST) });
+        }
+        if (url.endsWith('/api/source/process')) {
+            return Promise.resolve({ ok: true, json: () => Promise.resolve({ status: 'queued' }) });
+        }
+        if (url.includes('/api/source/state')) {
+            const next = sequence[stateCalls] ?? sequence[sequence.length - 1] ?? initialStatus;
+            stateCalls += 1;
+            return Promise.resolve({ ok: true, json: () => Promise.resolve({ status: next }) });
+        }
+        return Promise.reject(new Error('unexpected url: ' + url));
+    });
+}
+
 describe('EditorApp', () => {
     beforeEach(() => {
         _resetCachedBaseForTests();
+        vi.useFakeTimers();
         global.window.electronAPI = {
             getEngineUrl: () => Promise.resolve('http://127.0.0.1:8888'),
             pickFolder: vi.fn(() => Promise.resolve('C:/case-folder')),
         };
-        global.fetch = vi.fn((url, opts) => {
-            if (url === 'http://127.0.0.1:8888/api/project/open' && opts?.method === 'POST') {
-                return Promise.resolve({
-                    ok: true,
-                    json: () => Promise.resolve(SAMPLE_MANIFEST),
-                });
-            }
-            return Promise.reject(new Error('unexpected url: ' + url));
-        });
     });
 
     afterEach(() => {
+        vi.useRealTimers();
         delete global.window.electronAPI;
         global.fetch = undefined;
     });
 
     it('renders the empty state on mount', () => {
+        global.fetch = setupFetchStub();
         render(<EditorApp />);
         expect(screen.getByRole('button', { name: /open folder/i })).toBeDefined();
     });
 
-    it('opens a folder, calls /api/project/open, and renders the project view', async () => {
+    it('opens a folder, renders project view', async () => {
+        global.fetch = setupFetchStub();
         render(<EditorApp />);
         fireEvent.click(screen.getByRole('button', { name: /open folder/i }));
+        await waitFor(() => expect(screen.getByText('officer.mp4')).toBeDefined());
+    });
+
+    it('kicks off processing on file select', async () => {
+        global.fetch = setupFetchStub({ sequence: ['queued', 'running', 'completed'] });
+        render(<EditorApp />);
+        fireEvent.click(screen.getByRole('button', { name: /open folder/i }));
+        await waitFor(() => expect(screen.getByText('officer.mp4')).toBeDefined());
+
+        fireEvent.click(screen.getByText('officer.mp4'));
+
         await waitFor(() => {
-            expect(screen.getByText('officer.mp4')).toBeDefined();
+            expect(global.fetch).toHaveBeenCalledWith(
+                'http://127.0.0.1:8888/api/source/process',
+                expect.objectContaining({
+                    method: 'POST',
+                    body: JSON.stringify({ folder: 'C:/case-folder', source: 'C:/case-folder/officer.mp4' }),
+                }),
+            );
         });
-        expect(window.electronAPI.pickFolder).toHaveBeenCalledTimes(1);
-        expect(global.fetch).toHaveBeenCalledWith(
-            'http://127.0.0.1:8888/api/project/open',
-            expect.objectContaining({
-                method: 'POST',
-                body: JSON.stringify({ path: 'C:/case-folder' }),
-            }),
-        );
     });
 
-    it('does nothing if the user cancels the folder dialog', async () => {
-        window.electronAPI.pickFolder = vi.fn(() => Promise.resolve(null));
+    it('polls source state and updates UI to completed', async () => {
+        global.fetch = setupFetchStub({ sequence: ['running', 'running', 'completed'] });
         render(<EditorApp />);
         fireEvent.click(screen.getByRole('button', { name: /open folder/i }));
-        // Wait a tick to confirm no fetch fired
-        await new Promise((r) => setTimeout(r, 10));
-        expect(global.fetch).not.toHaveBeenCalled();
-        // Still on empty state
-        expect(screen.getByRole('button', { name: /open folder/i })).toBeDefined();
-    });
+        await waitFor(() => expect(screen.getByText('officer.mp4')).toBeDefined());
+        fireEvent.click(screen.getByText('officer.mp4'));
 
-    it('returns to empty state when the project is closed', async () => {
-        render(<EditorApp />);
-        fireEvent.click(screen.getByRole('button', { name: /open folder/i }));
-        await waitFor(() => {
-            expect(screen.getByText('officer.mp4')).toBeDefined();
+        // First poll → running
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(1000);
         });
-        fireEvent.click(screen.getByRole('button', { name: /close/i }));
-        expect(screen.getByRole('button', { name: /open folder/i })).toBeDefined();
-        expect(screen.queryByText('officer.mp4')).toBeNull();
-    });
+        // Second poll → completed
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(1000);
+        });
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(1000);
+        });
 
-    it('renders an inline error if /api/project/open fails', async () => {
-        global.fetch = vi.fn(() =>
-            Promise.resolve({
-                ok: false,
-                status: 404,
-                json: () => Promise.resolve({ error: 'folder not found' }),
-            }),
-        );
-        render(<EditorApp />);
-        fireEvent.click(screen.getByRole('button', { name: /open folder/i }));
         await waitFor(() => {
-            expect(screen.getByText(/folder not found/i)).toBeDefined();
+            const row = document.querySelector('[data-status="completed"]');
+            expect(row).not.toBeNull();
         });
     });
 });

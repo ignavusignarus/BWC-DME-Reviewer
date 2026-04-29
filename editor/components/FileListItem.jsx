@@ -6,6 +6,20 @@ const MODE_COLORS = {
     dme: { bg: '#3a2d0e', fg: '#fbbf24' },
 };
 
+const STATUS_LABELS = {
+    queued: 'queued',
+    running: 'extracting…',
+    completed: '',
+    failed: 'failed',
+};
+
+const STATUS_COLORS = {
+    queued: '#6e7681',
+    running: '#fbbf24',
+    completed: '#22c55e',
+    failed: '#f87171',
+};
+
 function formatSize(bytes) {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -13,7 +27,32 @@ function formatSize(bytes) {
     return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
-export default function FileListItem({ file, selected, onSelect }) {
+function StatusIndicator({ status }) {
+    if (!status) return null;
+    const color = STATUS_COLORS[status] ?? '#6e7681';
+    const label = STATUS_LABELS[status] ?? status;
+    const glyph = status === 'completed' ? '✓' : status === 'failed' ? '✗' : '●';
+    return (
+        <span
+            data-status={status}
+            style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                color,
+                fontSize: '0.75rem',
+                marginLeft: '0.75rem',
+                minWidth: 80,
+                justifyContent: 'flex-end',
+            }}
+        >
+            <span aria-hidden="true">{glyph}</span>
+            {label && <span>{label}</span>}
+        </span>
+    );
+}
+
+export default function FileListItem({ file, selected, onSelect, status }) {
     const modeStyle = MODE_COLORS[file.mode] || { bg: '#21262d', fg: '#8b949e' };
     return (
         <div
@@ -52,6 +91,7 @@ export default function FileListItem({ file, selected, onSelect }) {
             <span style={{ color: '#6e7681', fontSize: '0.85rem' }}>
                 {formatSize(file.size_bytes)}
             </span>
+            <StatusIndicator status={status} />
         </div>
     );
 }

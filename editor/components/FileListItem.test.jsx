@@ -49,3 +49,61 @@ describe('FileListItem', () => {
         expect(item.getAttribute('aria-selected')).toBe('true');
     });
 });
+
+describe('FileListItem status indicator', () => {
+    it('renders no status indicator when status is undefined', () => {
+        const { container } = render(
+            <FileListItem file={sampleFile} selected={false} onSelect={() => {}} />,
+        );
+        expect(container.querySelector('[data-status]')).toBeNull();
+    });
+
+    it('renders running status', () => {
+        render(
+            <FileListItem
+                file={sampleFile}
+                selected={false}
+                onSelect={() => {}}
+                status="running"
+            />,
+        );
+        expect(screen.getByText(/extracting/i)).toBeDefined();
+    });
+
+    it('renders queued status', () => {
+        render(
+            <FileListItem
+                file={sampleFile}
+                selected={false}
+                onSelect={() => {}}
+                status="queued"
+            />,
+        );
+        expect(screen.getByText(/queued/i)).toBeDefined();
+    });
+
+    it('renders completed status with checkmark', () => {
+        const { container } = render(
+            <FileListItem
+                file={sampleFile}
+                selected={false}
+                onSelect={() => {}}
+                status="completed"
+            />,
+        );
+        const indicator = container.querySelector('[data-status="completed"]');
+        expect(indicator).not.toBeNull();
+    });
+
+    it('renders failed status', () => {
+        render(
+            <FileListItem
+                file={sampleFile}
+                selected={false}
+                onSelect={() => {}}
+                status="failed"
+            />,
+        );
+        expect(screen.getByText(/failed/i)).toBeDefined();
+    });
+});
