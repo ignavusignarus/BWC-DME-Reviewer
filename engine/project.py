@@ -70,3 +70,20 @@ def detect_mode(path: Path) -> str:
     if ext in AUDIO_EXTENSIONS:
         return "dme"
     raise ValueError(f"unrecognized media extension: {path}")
+
+
+CACHE_DIR_NAME = ".bwcclipper"
+
+
+def ensure_cache_dir(folder: Path) -> Path:
+    """Ensure ``folder/.bwcclipper/`` exists; return its path.
+
+    Idempotent: safe to call repeatedly. Raises ``NotADirectoryError`` if a
+    non-directory file already occupies the path.
+    """
+    folder = Path(folder).resolve()
+    cache = folder / CACHE_DIR_NAME
+    if cache.exists() and not cache.is_dir():
+        raise NotADirectoryError(cache)
+    cache.mkdir(exist_ok=True)
+    return cache

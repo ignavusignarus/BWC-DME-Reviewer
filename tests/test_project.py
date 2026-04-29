@@ -113,3 +113,26 @@ def test_detect_mode_unknown_extension_raises(tmp_path: Path):
     f.write_bytes(b"")
     with pytest.raises(ValueError):
         detect_mode(f)
+
+
+from engine.project import ensure_cache_dir
+
+
+def test_ensure_cache_dir_creates_when_missing(tmp_path: Path):
+    cache = ensure_cache_dir(tmp_path)
+    assert cache == tmp_path / ".bwcclipper"
+    assert cache.is_dir()
+
+
+def test_ensure_cache_dir_idempotent(tmp_path: Path):
+    cache1 = ensure_cache_dir(tmp_path)
+    cache2 = ensure_cache_dir(tmp_path)
+    assert cache1 == cache2
+    assert cache1.is_dir()
+
+
+def test_ensure_cache_dir_raises_if_blocked_by_file(tmp_path: Path):
+    blocker = tmp_path / ".bwcclipper"
+    blocker.write_bytes(b"not a directory")
+    with pytest.raises(NotADirectoryError):
+        ensure_cache_dir(tmp_path)
