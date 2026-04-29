@@ -155,7 +155,7 @@ class BWCRequestHandler(BaseHTTPRequestHandler):
         if not isinstance(source, str) or not source:
             return 400, {"error": "missing 'source' field"}
         runner = get_pipeline_runner()
-        runner.submit_extract(Path(folder), Path(source))
+        runner.submit_pipeline(Path(folder), Path(source))
         status = runner.get_status(Path(folder), Path(source))
         return 200, {"status": status}
 
