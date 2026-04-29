@@ -5,12 +5,14 @@ const { app, BrowserWindow, dialog, ipcMain } = require('electron');
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+const ffmpegDownloader = require('./ffmpeg-downloader');
 
 let mainWindow = null;
 let splashWindow = null;
 let pythonProcess = null;
 let serverPort = null;
 let isShuttingDown = false;
+let ffmpegDir = null;
 
 const REPO_ROOT = path.resolve(__dirname, '..');
 
@@ -60,9 +62,11 @@ function spawnEngine() {
             return;
         }
         console.log(`[main] spawning engine: ${py} ${servePy}`);
+        const env = { ...process.env, PYTHONUNBUFFERED: '1' };
+        if (ffmpegDir) env.BWC_CLIPPER_FFMPEG_DIR = ffmpegDir;
         const proc = spawn(py, [servePy], {
             cwd: REPO_ROOT,
-            env: { ...process.env, PYTHONUNBUFFERED: '1' },
+            env,
             stdio: ['ignore', 'pipe', 'pipe'],
         });
 
@@ -161,6 +165,22 @@ ipcMain.handle('pick-folder', async () => {
 
 app.whenReady().then(async () => {
     createSplashWindow();
+    setSplashStatus('Checking ffmpeg…');
+    try {
+        ffmpegDir = await ffmpegDownloader.ensureInstalled((status) => {
+            if (status.phase === 'downloading') {
+                const pct = Math.round(status.fraction * 100);
+                setSplashStatus(`Downloading ffmpeg from ${status.source}… ${pct}%`);
+            } else if (status.phase === 'extracting') {
+                setSplashStatus('Extracting ffmpeg…');
+            }
+        });
+    } catch (err) {
+        console.error('[main] ffmpeg setup failed:', err);
+        setSplashStatus(`Failed to install ffmpeg: ${err.message}`);
+        return;
+    }
+
     setSplashStatus('Starting engine…');
     try {
         const { proc, port } = await spawnEngine();
@@ -171,7 +191,6 @@ app.whenReady().then(async () => {
     } catch (err) {
         console.error('[main] engine startup failed:', err);
         setSplashStatus(`Failed to start engine: ${err.message}`);
-        // Leave splash visible so the user sees the error. They can close it manually.
     }
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) createSplashWindow();
