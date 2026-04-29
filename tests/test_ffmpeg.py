@@ -81,3 +81,72 @@ def test_run_ffprobe_returns_stdout(tmp_path: Path, monkeypatch):
     with patch("engine.ffmpeg.subprocess.run", return_value=fake_completed):
         out = run_ffprobe(["-show_streams", "input.mp4"])
     assert out == '{"streams":[]}'
+
+
+import json as _json
+
+from engine.ffmpeg import probe_audio_tracks
+
+
+def test_probe_audio_tracks_parses_stream_list(tmp_path: Path, monkeypatch):
+    fake = tmp_path / ("ffprobe.exe" if os.name == "nt" else "ffprobe")
+    fake.write_bytes(b"")
+    monkeypatch.setenv("BWC_CLIPPER_FFMPEG_DIR", str(tmp_path))
+
+    ffprobe_output = _json.dumps({
+        "streams": [
+            {
+                "index": 1,
+                "codec_type": "audio",
+                "codec_name": "aac",
+                "sample_rate": "48000",
+                "channels": 2,
+                "duration": "120.5",
+            },
+            {
+                "index": 2,
+                "codec_type": "audio",
+                "codec_name": "aac",
+                "sample_rate": "48000",
+                "channels": 1,
+                "duration": "120.5",
+            },
+        ]
+    })
+    fake_completed = MagicMock(returncode=0, stdout=ffprobe_output, stderr="")
+    with patch("engine.ffmpeg.subprocess.run", return_value=fake_completed):
+        tracks = probe_audio_tracks(Path("input.mp4"))
+    assert len(tracks) == 2
+    assert tracks[0] == {
+        "index": 1, "codec_name": "aac",
+        "sample_rate": 48000, "channels": 2, "duration_seconds": 120.5,
+    }
+    assert tracks[1]["channels"] == 1
+
+
+def test_probe_audio_tracks_returns_empty_for_no_audio(tmp_path: Path, monkeypatch):
+    fake = tmp_path / ("ffprobe.exe" if os.name == "nt" else "ffprobe")
+    fake.write_bytes(b"")
+    monkeypatch.setenv("BWC_CLIPPER_FFMPEG_DIR", str(tmp_path))
+    fake_completed = MagicMock(returncode=0, stdout='{"streams":[]}', stderr="")
+    with patch("engine.ffmpeg.subprocess.run", return_value=fake_completed):
+        tracks = probe_audio_tracks(Path("video-only.mp4"))
+    assert tracks == []
+
+
+def test_probe_audio_tracks_handles_missing_optional_fields(tmp_path: Path, monkeypatch):
+    """Some sources omit duration in stream metadata; treat as None."""
+    fake = tmp_path / ("ffprobe.exe" if os.name == "nt" else "ffprobe")
+    fake.write_bytes(b"")
+    monkeypatch.setenv("BWC_CLIPPER_FFMPEG_DIR", str(tmp_path))
+    fake_completed = MagicMock(
+        returncode=0,
+        stdout=_json.dumps({"streams": [{
+            "index": 0, "codec_type": "audio", "codec_name": "pcm_s16le",
+            "sample_rate": "16000", "channels": 1,
+        }]}),
+        stderr="",
+    )
+    with patch("engine.ffmpeg.subprocess.run", return_value=fake_completed):
+        tracks = probe_audio_tracks(Path("clean.wav"))
+    assert tracks[0]["duration_seconds"] is None

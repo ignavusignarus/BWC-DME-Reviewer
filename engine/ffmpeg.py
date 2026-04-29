@@ -76,3 +76,36 @@ def run_ffprobe(args: list[str], *, timeout: float | None = None) -> str:
         return result.stdout
     except subprocess.CalledProcessError as exc:
         raise RuntimeError(f"ffprobe failed (exit {exc.returncode}): {exc.stderr}") from exc
+
+
+import json
+
+
+def probe_audio_tracks(path: Path) -> list[dict]:
+    """Run ffprobe to enumerate audio tracks in ``path``.
+
+    Returns a list of dicts (one per audio stream) with keys:
+    index, codec_name, sample_rate, channels, duration_seconds.
+    Returns [] if the file has no audio streams.
+    """
+    output = run_ffprobe([
+        "-v", "error",
+        "-show_streams",
+        "-select_streams", "a",
+        "-of", "json",
+        str(path),
+    ])
+    data = json.loads(output)
+    tracks = []
+    for stream in data.get("streams", []):
+        if stream.get("codec_type") != "audio":
+            continue
+        duration_str = stream.get("duration")
+        tracks.append({
+            "index": int(stream["index"]),
+            "codec_name": stream.get("codec_name", ""),
+            "sample_rate": int(stream.get("sample_rate", 0)),
+            "channels": int(stream.get("channels", 0)),
+            "duration_seconds": float(duration_str) if duration_str else None,
+        })
+    return tracks
