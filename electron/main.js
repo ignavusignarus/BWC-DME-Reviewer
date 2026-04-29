@@ -1,7 +1,7 @@
 /*
  * BWC Clipper Electron main process.
  */
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain } = require('electron');
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
@@ -148,6 +148,16 @@ ipcMain.handle('get-engine-url', () => {
     return `http://127.0.0.1:${serverPort}`;
 });
 ipcMain.handle('get-app-version', () => app.getVersion());
+ipcMain.handle('pick-folder', async () => {
+    const result = await dialog.showOpenDialog(mainWindow ?? undefined, {
+        title: 'Open BWC Clipper project folder',
+        properties: ['openDirectory', 'createDirectory'],
+    });
+    if (result.canceled || result.filePaths.length === 0) {
+        return null;
+    }
+    return result.filePaths[0];
+});
 
 app.whenReady().then(async () => {
     createSplashWindow();
