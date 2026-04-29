@@ -136,3 +136,52 @@ def test_ensure_cache_dir_raises_if_blocked_by_file(tmp_path: Path):
     blocker.write_bytes(b"not a directory")
     with pytest.raises(NotADirectoryError):
         ensure_cache_dir(tmp_path)
+
+
+from engine.project import open_project
+
+
+def test_open_project_returns_manifest(tmp_path: Path):
+    _touch(tmp_path / "officer-a.mp4")
+    _touch(tmp_path / "subjects" / "doctor.MP3")
+    _touch(tmp_path / "readme.txt")  # ignored
+
+    manifest = open_project(tmp_path)
+
+    assert manifest["folder"] == str(tmp_path.resolve()).replace("\\", "/")
+    files = manifest["files"]
+    assert len(files) == 2
+    by_basename = {f["basename"]: f for f in files}
+
+    assert by_basename["officer-a.mp4"]["mode"] == "bwc"
+    assert by_basename["officer-a.mp4"]["extension"] == "mp4"
+    assert by_basename["officer-a.mp4"]["size_bytes"] == 0
+    assert by_basename["officer-a.mp4"]["path"].endswith("officer-a.mp4")
+
+    assert by_basename["doctor.MP3"]["mode"] == "dme"
+    assert by_basename["doctor.MP3"]["extension"] == "MP3"  # case preserved
+
+
+def test_open_project_creates_cache_directory(tmp_path: Path):
+    _touch(tmp_path / "x.mp4")
+    open_project(tmp_path)
+    assert (tmp_path / ".bwcclipper").is_dir()
+
+
+def test_open_project_empty_folder_is_valid(tmp_path: Path):
+    """No media files is not an error — manifest just has empty files list."""
+    manifest = open_project(tmp_path)
+    assert manifest["files"] == []
+
+
+def test_open_project_paths_use_forward_slashes(tmp_path: Path):
+    _touch(tmp_path / "subdir" / "x.mp4")
+    manifest = open_project(tmp_path)
+    assert "\\" not in manifest["files"][0]["path"]
+    assert "\\" not in manifest["folder"]
+
+
+def test_open_project_raises_on_missing_folder(tmp_path: Path):
+    missing = tmp_path / "nope"
+    with pytest.raises(FileNotFoundError):
+        open_project(missing)

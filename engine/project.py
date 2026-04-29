@@ -87,3 +87,49 @@ def ensure_cache_dir(folder: Path) -> Path:
         raise NotADirectoryError(cache)
     cache.mkdir(exist_ok=True)
     return cache
+
+
+def open_project(folder: Path) -> dict:
+    """Open a folder as a BWC Clipper project.
+
+    1. Validates the folder exists and is a directory (via walk_media_files).
+    2. Ensures .bwcclipper/ cache directory exists.
+    3. Walks the folder for media files.
+    4. Returns a manifest dict for the HTTP endpoint.
+
+    Manifest schema (V1):
+        {
+            "folder": "<absolute path, forward-slashes>",
+            "files": [
+                {
+                    "basename": "officer-garcia.mp4",
+                    "path": "<absolute path, forward-slashes>",
+                    "extension": "mp4",          # original casing preserved
+                    "mode": "bwc",                # bwc | dme
+                    "size_bytes": 123456789
+                },
+                ...
+            ]
+        }
+    """
+    folder = Path(folder).resolve()
+    # walk_media_files validates folder exists and is a directory.
+    paths = walk_media_files(folder)
+    ensure_cache_dir(folder)
+
+    files = []
+    for p in paths:
+        files.append(
+            {
+                "basename": p.name,
+                "path": str(p).replace("\\", "/"),
+                "extension": p.suffix.lstrip("."),
+                "mode": detect_mode(p),
+                "size_bytes": p.stat().st_size,
+            }
+        )
+
+    return {
+        "folder": str(folder).replace("\\", "/"),
+        "files": files,
+    }
