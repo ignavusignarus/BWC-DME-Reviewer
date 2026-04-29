@@ -30,3 +30,64 @@ Independent codebase mirroring the patterns of [Depo Clipper](https://github.com
 5. Export — video sources produce one MP4; audio sources produce both an audio file and a waveform-rendered MP4. No transcript overlay on any output.
 
 See the design spec for full detail.
+
+## Development
+
+### First-time setup
+
+```bash
+# Python engine
+python -m venv .venv
+.venv/Scripts/python.exe -m pip install --upgrade pip      # Windows
+# .venv/bin/python -m pip install --upgrade pip            # macOS/Linux
+.venv/Scripts/python.exe -m pip install -e ".[dev]"
+
+# Node + Electron
+npm install
+```
+
+### Run the desktop app
+
+```bash
+npm run build:editor   # bundle React editor
+npm start              # launch Electron, which spawns the Python engine
+```
+
+### Run tests
+
+```bash
+.venv/Scripts/python.exe -m pytest    # engine tests
+npm test                              # editor tests (vitest)
+```
+
+### Watch mode for editor development
+
+```bash
+npm run watch:editor   # rebuilds editor-bundle.js on change
+```
+
+You'll need to reload the Electron window manually (Ctrl+R) to pick up changes.
+
+## Architecture (one diagram)
+
+```
+┌─────────────────────────┐         spawn         ┌──────────────────────┐
+│  Electron main process  │ ────────────────────► │  Python engine       │
+│  (electron/main.js)     │                       │  (serve.py)          │
+│                         │ ◄──── stdout: port ── │                      │
+│                         │                       │  http.server on      │
+│                         │                       │  127.0.0.1:<port>    │
+└────────┬────────────────┘                       └──────────┬───────────┘
+         │ contextBridge                                     │ HTTP /api/*
+         ▼                                                   │
+┌─────────────────────────┐    fetch()                       │
+│  Renderer (Chromium)    │ ─────────────────────────────────┘
+│  (index.html →          │
+│   editor-bundle.js →    │
+│   React EditorApp)      │
+└─────────────────────────┘
+```
+
+Three processes per launch. Engine listens only on loopback. Editor talks to it
+over plain HTTP; native operations (folder picker, settings) go through
+`window.electronAPI.*` exposed by `electron/preload.js` to the main process.

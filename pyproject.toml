@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bwc-clipper-engine"
+version = "0.0.1"
+description = "BWC Clipper Python engine — transcription pipeline, ffmpeg orchestration, clip composition."
+authors = [{ name = "Andy Schrader" }]
+license = { text = "Consumer Attorney Open Source License v1.0" }
+requires-python = ">=3.11,<3.13"
+
+# Milestone 0 has zero runtime deps — pipeline deps land in later milestones.
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7,<9",
+    "pytest-timeout>=2.2",
+    "ruff>=0.5",
+    "requests>=2.31",  # used in tests/test_serve_smoke.py only
+]
+
+[tool.setuptools.packages.find]
+include = ["engine*"]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+timeout = 30
+markers = [
+    "smoke: end-to-end smoke tests that start subprocesses",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM"]
+ignore = ["E501"]
