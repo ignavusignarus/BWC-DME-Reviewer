@@ -44,3 +44,14 @@ def test_unknown_path_returns_404(running_server):
     port = running_server
     response = requests.get(f"http://127.0.0.1:{port}/api/nope", timeout=2)
     assert response.status_code == 404
+
+
+def test_version_endpoint_returns_engine_version(running_server):
+    """Confirms the /api/version handler exposes engine.version.get_version."""
+    from engine.version import get_version
+
+    port = running_server
+    response = requests.get(f"http://127.0.0.1:{port}/api/version", timeout=2)
+    assert response.status_code == 200
+    body = response.json()
+    assert body == {"version": get_version()}
