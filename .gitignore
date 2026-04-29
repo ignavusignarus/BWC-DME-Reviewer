@@ -33,7 +33,7 @@ venv/
 node_modules/
 out/
 dist/
-editor-bundle.js
+editor-bundle.js*
 forge.config.local.js
 .electron-cache/
 
