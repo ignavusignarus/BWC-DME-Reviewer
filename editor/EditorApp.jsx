@@ -4,7 +4,9 @@ import EmptyState from './components/EmptyState.jsx';
 import ProjectView from './components/ProjectView.jsx';
 
 const POLL_INTERVAL_MS = 1000;
-const ACTIVE_STATUSES = new Set(['queued', 'running']);
+function isActiveStatus(s) {
+    return s === 'queued' || (typeof s === 'string' && s.startsWith('running'));
+}
 
 export default function EditorApp() {
     const [manifest, setManifest] = useState(null);
@@ -44,7 +46,7 @@ export default function EditorApp() {
                 source: file.path,
             });
             setStatuses((s) => ({ ...s, [file.path]: resp.status }));
-            if (ACTIVE_STATUSES.has(resp.status)) {
+            if (isActiveStatus(resp.status)) {
                 startPolling(file.path);
             }
         } catch (err) {
@@ -60,7 +62,7 @@ export default function EditorApp() {
                 const params = new URLSearchParams({ folder: manifest.folder, source: path });
                 const resp = await apiGet(`/api/source/state?${params.toString()}`);
                 setStatuses((s) => ({ ...s, [path]: resp.status }));
-                if (!ACTIVE_STATUSES.has(resp.status)) {
+                if (!isActiveStatus(resp.status)) {
                     stopPolling();
                 }
             } catch (err) {

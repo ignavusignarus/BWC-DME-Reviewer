@@ -76,24 +76,23 @@ describe('EditorApp', () => {
         });
     });
 
-    it('polls source state and updates UI to completed', async () => {
-        global.fetch = setupFetchStub({ sequence: ['running', 'running', 'completed'] });
+    it('polls source state across stages and updates UI to completed', async () => {
+        global.fetch = setupFetchStub({
+            sequence: ['running:extract', 'running:normalize', 'completed'],
+        });
         render(<EditorApp />);
         fireEvent.click(screen.getByRole('button', { name: /open folder/i }));
         await waitFor(() => expect(screen.getByText('officer.mp4')).toBeDefined());
         fireEvent.click(screen.getByText('officer.mp4'));
 
-        // First poll → running
-        await act(async () => {
-            await vi.advanceTimersByTimeAsync(1000);
-        });
-        // Second poll → completed
-        await act(async () => {
-            await vi.advanceTimersByTimeAsync(1000);
-        });
-        await act(async () => {
-            await vi.advanceTimersByTimeAsync(1000);
-        });
+        // First poll → running:extract
+        await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+        // Second poll → running:normalize
+        await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+        // Third poll → completed
+        await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+        // Fourth tick — polling should have stopped after seeing 'completed'.
+        await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
 
         await waitFor(() => {
             const row = document.querySelector('[data-status="completed"]');
