@@ -1,0 +1,55 @@
+# Real case media — never commit
+Samples/
+*.mp4
+*.mov
+*.mkv
+*.avi
+*.MP3
+*.mp3
+*.wav
+*.m4a
+*.aac
+*.flac
+
+# Project state and clip outputs (created by the app at runtime)
+.bwcclipper/
+clips/
+
+# Brainstorm / design scratch (per Superpowers convention)
+.superpowers/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Node / Electron
+node_modules/
+out/
+dist/
+editor-bundle.js
+forge.config.local.js
+.electron-cache/
+
+# PyInstaller / packaging output
+build/
+*.spec.local
+warm_*.log
+server.log
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Models cache (large; shipped via installer)
+models/
+vendor/ffmpeg/

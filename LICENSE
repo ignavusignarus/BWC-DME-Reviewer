@@ -1,0 +1,277 @@
+Copyright 2026 Andy Schrader
+
+CONSUMER ATTORNEY OPEN SOURCE LICENSE
+Version 1.0
+
+================================================================================
+
+This Consumer Attorney Open Source License (the "License") governs the use,
+reproduction, modification, and distribution of the software and associated
+documentation files (the "Software") to which this License is attached or
+referenced. By using, copying, modifying, or distributing the Software, You
+agree to be bound by the terms of this License.
+
+The purpose of this License is to make the Software freely available to
+attorneys and organizations who primarily represent consumers, plaintiffs, and
+individuals in civil litigation, while requiring a separate written license
+agreement for use by those who primarily defend institutional interests against
+such individuals.
+
+================================================================================
+
+1. DEFINITIONS
+
+"Consumer Attorney" means any natural person who is a licensed attorney, and any
+law firm, legal organization, or legal aid entity with which such attorney is
+associated, where the attorney and anyone associated with his or her firm
+primarily represent plaintiffs and do not defend on an ongoing basis any
+insurance company(ies), manufacturer(s), governmental entity(ies), common
+carrier(s), corporation(s), public utility(ies), or other organization in
+personal injury, wrongful death, workers' compensation, employment, or other
+consumer-related litigation.
+
+"Defense Practitioner" means any natural person, law firm, legal organization,
+corporate legal department, insurance company, third-party administrator, or any
+other entity that does not meet the definition of Consumer Attorney set forth
+above. Without limitation, this includes any person or entity that defends, on
+an ongoing basis, any insurance company(ies), manufacturer(s), governmental
+entity(ies), common carrier(s), corporation(s), public utility(ies), or other
+organization in personal injury, wrongful death, workers' compensation,
+employment, or other consumer-related litigation.
+
+"Non-Commercial Use" means use of the Software solely for personal, educational,
+academic, research, or charitable purposes that do not involve, directly or
+indirectly, the generation of revenue, commercial advantage, or monetary
+compensation. Non-Commercial Use expressly includes use by law school clinics,
+legal aid organizations, and pro bono programs regardless of the user's status
+as a Consumer Attorney or Defense Practitioner.
+
+"You" or "Your" means the individual or entity exercising rights under this
+License.
+
+"Licensor" means the copyright holder(s) or entity authorized by the copyright
+holder(s) to grant rights under this License.
+
+"Modification" or "Derivative Work" means any work based upon the Software,
+including but not limited to any revision, enhancement, adaptation, translation,
+abridgment, condensation, expansion, or any other form in which the Software may
+be recast, transformed, or adapted.
+
+"Distribute" or "Distribution" means to make available to third parties by any
+means, including but not limited to publishing, deploying, sublicensing,
+selling, or otherwise transferring copies of the Software or Derivative Works.
+
+"Written License Agreement" means a separate written agreement, executed by the
+Licensor and the Defense Practitioner, setting forth the specific terms,
+conditions, fees (if any), and limitations under which the Defense Practitioner
+may use the Software.
+
+
+2. GRANT OF RIGHTS TO CONSUMER ATTORNEYS
+
+Subject to the terms and conditions of this License, the Licensor hereby grants
+to any Consumer Attorney a perpetual, worldwide, non-exclusive, royalty-free,
+irrevocable license to:
+
+    (a) Use, copy, and run the Software for any purpose, including commercial
+        use in the Consumer Attorney's law practice;
+
+    (b) Modify the Software and create Derivative Works;
+
+    (c) Distribute copies of the Software or Derivative Works to other Consumer
+        Attorneys, provided that such Distribution includes a complete copy of
+        this License and all copyright and attribution notices;
+
+    (d) Merge the Software with other software and use the resulting combined
+        work, provided that the portions of such combined work that constitute
+        the Software or Derivative Works thereof remain subject to this License;
+        and
+
+    (e) Sublicense the rights granted herein to other Consumer Attorneys,
+        subject to the same terms and conditions of this License.
+
+
+3. GRANT OF RIGHTS FOR NON-COMMERCIAL USE
+
+Subject to the terms and conditions of this License, the Licensor hereby grants
+to any person or entity a perpetual, worldwide, non-exclusive, royalty-free
+license to use, copy, modify, and distribute the Software solely for
+Non-Commercial Use, provided that:
+
+    (a) All copies and Derivative Works include a complete copy of this License
+        and all copyright and attribution notices;
+
+    (b) The Software and any Derivative Works are not used, directly or
+        indirectly, in connection with the defense of any insurance company,
+        manufacturer, governmental entity, common carrier, corporation, public
+        utility, or other organization in personal injury, wrongful death,
+        workers' compensation, employment, or other consumer-related litigation;
+        and
+
+    (c) Any Distribution of the Software or Derivative Works for Non-Commercial
+        Use prominently states that such use is limited to Non-Commercial
+        purposes under this License.
+
+
+4. RESTRICTIONS ON DEFENSE PRACTITIONERS
+
+No Defense Practitioner may use, copy, modify, distribute, sublicense, or
+otherwise exercise any rights with respect to the Software except pursuant to a
+Written License Agreement executed by the Licensor. Any use of the Software by
+a Defense Practitioner without a valid Written License Agreement constitutes a
+violation of this License and an infringement of the Licensor's copyright.
+
+For purposes of clarity, the following uses by a Defense Practitioner are
+expressly prohibited absent a Written License Agreement:
+
+    (a) Use of the Software in any litigation, arbitration, mediation,
+        administrative proceeding, or other dispute resolution process in which
+        the Defense Practitioner represents an insurance company, manufacturer,
+        governmental entity, common carrier, corporation, public utility, or
+        other organization;
+
+    (b) Integration of the Software into any product, service, platform, or tool
+        used by or on behalf of any such organization;
+
+    (c) Use of the Software for internal operations, training, research, or
+        development by any such organization or by any law firm or attorney
+        acting on behalf of such organization; and
+
+    (d) Distribution of the Software or any Derivative Work to any other Defense
+        Practitioner.
+
+
+5. CHANGE IN STATUS
+
+If a Consumer Attorney ceases to meet the definition of Consumer Attorney as set
+forth in Section 1 (for example, by undertaking the ongoing defense of an
+insurance company, manufacturer, governmental entity, common carrier,
+corporation, public utility, or other organization in the types of litigation
+described herein), the rights granted under Section 2 shall automatically
+terminate, and such person or entity shall be classified as a Defense
+Practitioner for purposes of this License. Such person or entity must either
+(a) cease all use of the Software, or (b) obtain a Written License Agreement
+from the Licensor within sixty (60) days of such change in status.
+
+Conversely, if a Defense Practitioner comes to meet the definition of Consumer
+Attorney, the rights under Section 2 shall automatically vest upon satisfaction
+of the Consumer Attorney definition, provided that the person or entity notifies
+the Licensor in writing of such change in status within thirty (30) days.
+
+
+6. DISTRIBUTION REQUIREMENTS
+
+Any Distribution of the Software or Derivative Works, by any party and under any
+grant of rights herein, must satisfy all of the following conditions:
+
+    (a) The Distribution must include a complete, unmodified copy of this
+        License;
+
+    (b) The Distribution must include all original copyright notices and
+        attribution statements;
+
+    (c) Any Modifications must be clearly identified as such, with a description
+        of the changes made, the date of the changes, and the identity of the
+        person or entity making the changes;
+
+    (d) Derivative Works must be licensed under this License or a license with
+        terms no less restrictive than this License with respect to the
+        distinction between Consumer Attorneys and Defense Practitioners; and
+
+    (e) The Distribution must not remove, obscure, or alter any license
+        classification provisions of this License.
+
+
+7. INTELLECTUAL PROPERTY AND ATTRIBUTION
+
+This License does not grant permission to use the trade names, trademarks,
+service marks, or product names of the Licensor, except as required for
+reasonable and customary use in describing the origin of the Software.
+
+All intellectual property rights in the Software not expressly granted herein are
+reserved by the Licensor. Nothing in this License shall be construed to transfer
+ownership of any intellectual property rights in the Software to any licensee.
+
+
+8. DISCLAIMER OF WARRANTY
+
+THE SOFTWARE IS PROVIDED "AS IS," WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE, TITLE, AND NON-INFRINGEMENT. THE LICENSOR MAKES NO
+WARRANTY THAT THE SOFTWARE WILL BE UNINTERRUPTED, ERROR-FREE, OR FREE OF
+HARMFUL COMPONENTS. THE ENTIRE RISK AS TO THE QUALITY AND PERFORMANCE OF THE
+SOFTWARE IS WITH YOU.
+
+
+9. LIMITATION OF LIABILITY
+
+IN NO EVENT SHALL THE LICENSOR BE LIABLE TO YOU OR ANY THIRD PARTY FOR ANY
+DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, CONSEQUENTIAL, OR PUNITIVE
+DAMAGES, INCLUDING BUT NOT LIMITED TO DAMAGES FOR LOSS OF PROFITS, GOODWILL,
+DATA, OR OTHER INTANGIBLE LOSSES, ARISING OUT OF OR IN CONNECTION WITH THE USE
+OR INABILITY TO USE THE SOFTWARE, EVEN IF THE LICENSOR HAS BEEN ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGES. THIS LIMITATION SHALL APPLY REGARDLESS OF THE
+LEGAL THEORY UPON WHICH SUCH DAMAGES ARE SOUGHT.
+
+
+10. TERMINATION
+
+This License and the rights granted hereunder shall terminate automatically upon
+any breach by You of the terms of this License. Upon termination, You must
+immediately cease all use of the Software and destroy all copies in Your
+possession or control.
+
+Sections 7, 8, 9, 11, and 12 shall survive any termination of this License.
+
+
+11. GOVERNING LAW AND DISPUTE RESOLUTION
+
+This License shall be governed by and construed in accordance with the laws of
+the State of California, without regard to its conflict of laws
+provisions. Any dispute arising under or in connection with this License shall be
+resolved in the state or federal courts located in Los Angeles County, California, and the
+parties hereby consent to the exclusive jurisdiction and venue of such courts.
+
+
+12. GENERAL PROVISIONS
+
+Severability. If any provision of this License is held to be invalid, illegal, or
+unenforceable, the remaining provisions shall continue in full force and effect,
+and the invalid provision shall be modified to the minimum extent necessary to
+make it valid, legal, and enforceable while preserving its original intent.
+
+Entire Agreement. This License constitutes the entire agreement between the
+parties with respect to the subject matter hereof and supersedes all prior or
+contemporaneous understandings, agreements, or representations, whether written
+or oral, with respect to such subject matter.
+
+Waiver. No waiver of any provision of this License shall be effective unless
+made in writing and signed by the waiving party. The failure of the Licensor to
+enforce any provision of this License shall not constitute a waiver of such
+provision or the right to enforce it at a later time.
+
+Assignment. You may not assign or transfer this License or any rights or
+obligations hereunder without the prior written consent of the Licensor. Any
+attempted assignment in violation of this provision shall be null and void.
+
+No Third-Party Beneficiaries. This License is not intended to, and does not,
+create any rights or benefits enforceable by any person or entity not a party to
+this License, except as expressly provided herein.
+
+
+13. HOW TO APPLY THIS LICENSE TO YOUR SOFTWARE
+
+To apply this License to your software, attach the following notice to each
+source file and include a copy of this License with any Distribution:
+
+    Copyright [Year] [Copyright Holder]
+
+    Licensed under the Consumer Attorney Open Source License, Version 1.0
+    (the "License"). You may not use this file except in compliance with the
+    License. A copy of the License is included with this software or may be
+    obtained from [URL]. Use by Defense Practitioners (as defined in the
+    License) requires a separate Written License Agreement from the Licensor.
+
+================================================================================
+
+END OF LICENSE
