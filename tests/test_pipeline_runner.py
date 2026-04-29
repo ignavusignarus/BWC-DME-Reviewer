@@ -10,6 +10,18 @@ def _touch(p: Path, content: bytes = b""):
     p.write_bytes(content)
 
 
+def _ffmpeg_writes_output(args, **kwargs):
+    """Mock side_effect for run_ffmpeg that creates the output file.
+
+    ``args`` is the ffmpeg argv list (the single positional argument that
+    run_ffmpeg accepts). Real ffmpeg writes the output via the path given as
+    its final positional argument; we mirror that contract here.
+    """
+    from pathlib import Path
+    Path(args[-1]).touch()
+    return ""
+
+
 def test_runner_get_status_idle_for_unprocessed_source(tmp_path: Path):
     from engine.pipeline.runner import PipelineRunner
 
@@ -32,11 +44,11 @@ def test_runner_submit_pipeline_runs_extract_then_normalize(tmp_path: Path):
     runner = PipelineRunner()
     try:
         with patch("engine.pipeline.extract.probe_audio_tracks") as probe_mock, \
-             patch("engine.pipeline.extract.run_ffmpeg", return_value=""), \
+             patch("engine.pipeline.extract.run_ffmpeg", side_effect=_ffmpeg_writes_output), \
              patch("engine.pipeline.normalize.run_loudnorm_measure",
                    return_value={"input_i": "-12", "input_tp": "-1", "input_lra": "5",
                                  "input_thresh": "-20", "target_offset": "0"}), \
-             patch("engine.pipeline.normalize.run_ffmpeg", return_value=""):
+             patch("engine.pipeline.normalize.run_ffmpeg", side_effect=_ffmpeg_writes_output):
             probe_mock.return_value = [
                 {"index": 0, "codec_name": "aac", "sample_rate": 48000, "channels": 1, "duration_seconds": 1.0},
             ]
@@ -56,7 +68,7 @@ def test_runner_get_status_failed_after_normalize_error(tmp_path: Path):
     runner = PipelineRunner()
     try:
         with patch("engine.pipeline.extract.probe_audio_tracks") as probe_mock, \
-             patch("engine.pipeline.extract.run_ffmpeg", return_value=""), \
+             patch("engine.pipeline.extract.run_ffmpeg", side_effect=_ffmpeg_writes_output), \
              patch("engine.pipeline.normalize.run_loudnorm_measure",
                    side_effect=RuntimeError("boom-norm")):
             probe_mock.return_value = [
@@ -103,7 +115,7 @@ def test_runner_skips_extract_if_already_completed(tmp_path: Path):
     # Pre-run extract so its state.json says completed
     cache_dir = source_cache_dir(tmp_path, source)
     with patch("engine.pipeline.extract.probe_audio_tracks") as probe_mock, \
-         patch("engine.pipeline.extract.run_ffmpeg", return_value=""):
+         patch("engine.pipeline.extract.run_ffmpeg", side_effect=_ffmpeg_writes_output):
         probe_mock.return_value = [
             {"index": 0, "codec_name": "aac", "sample_rate": 48000, "channels": 1, "duration_seconds": 1.0},
         ]
@@ -115,7 +127,7 @@ def test_runner_skips_extract_if_already_completed(tmp_path: Path):
              patch("engine.pipeline.normalize.run_loudnorm_measure",
                    return_value={"input_i": "-12", "input_tp": "-1", "input_lra": "5",
                                  "input_thresh": "-20", "target_offset": "0"}), \
-             patch("engine.pipeline.normalize.run_ffmpeg", return_value="") as norm_mock:
+             patch("engine.pipeline.normalize.run_ffmpeg", side_effect=_ffmpeg_writes_output) as norm_mock:
             # Need an extracted/track0.wav for normalize to read
             extracted = cache_dir / "extracted" / "track0.wav"
             extracted.parent.mkdir(parents=True, exist_ok=True)
@@ -148,6 +160,9 @@ def test_runner_get_status_returns_running_with_stage_name(tmp_path: Path):
         extract_started.set()
         # Block until the test releases us
         block_extract.wait(timeout=5)
+        # Mirror real ffmpeg: write the output file
+        from pathlib import Path
+        Path(args[0][-1]).touch()
         return ""
 
     runner = PipelineRunner()
@@ -157,7 +172,7 @@ def test_runner_get_status_returns_running_with_stage_name(tmp_path: Path):
              patch("engine.pipeline.normalize.run_loudnorm_measure",
                    return_value={"input_i": "-12", "input_tp": "-1", "input_lra": "5",
                                  "input_thresh": "-20", "target_offset": "0"}), \
-             patch("engine.pipeline.normalize.run_ffmpeg", return_value=""):
+             patch("engine.pipeline.normalize.run_ffmpeg", side_effect=_ffmpeg_writes_output):
             probe_mock.return_value = [
                 {"index": 0, "codec_name": "aac", "sample_rate": 48000, "channels": 1, "duration_seconds": 1.0},
             ]

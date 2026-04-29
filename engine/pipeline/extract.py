@@ -62,10 +62,6 @@ def run_extract_stage(source_path: Path, cache_dir: Path) -> list[Path]:
 
         for n, track in enumerate(tracks):
             out = out_dir / f"track{n}.wav"
-            # Touch the output path before invoking ffmpeg so that the file
-            # exists even if ffmpeg is replaced by a test mock that returns
-            # without writing.  The real ffmpeg overwrites it with valid PCM.
-            out.touch()
             run_ffmpeg([
                 "-y",
                 "-i", str(source_path),
