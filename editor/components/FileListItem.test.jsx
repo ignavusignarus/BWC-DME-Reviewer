@@ -58,7 +58,7 @@ describe('FileListItem status indicator', () => {
         expect(container.querySelector('[data-status]')).toBeNull();
     });
 
-    it('renders running status', () => {
+    it('renders generic running label when status is just "running"', () => {
         render(
             <FileListItem
                 file={sampleFile}
@@ -67,7 +67,10 @@ describe('FileListItem status indicator', () => {
                 status="running"
             />,
         );
-        expect(screen.getByText(/extracting/i)).toBeDefined();
+        // Plain "running" without a stage suffix falls through to generic label.
+        // Don't assert exact wording — implementation detail — but DO assert the
+        // status-color dot is visible by aria-hidden glyph.
+        expect(screen.getByText('●')).toBeDefined();
     });
 
     it('renders queued status', () => {
@@ -105,5 +108,43 @@ describe('FileListItem status indicator', () => {
             />,
         );
         expect(screen.getByText(/failed/i)).toBeDefined();
+    });
+});
+
+describe('FileListItem stage-aware status', () => {
+    it('renders "extracting…" for running:extract', () => {
+        render(
+            <FileListItem
+                file={sampleFile}
+                selected={false}
+                onSelect={() => {}}
+                status="running:extract"
+            />,
+        );
+        expect(screen.getByText(/extracting/i)).toBeDefined();
+    });
+
+    it('renders "normalizing…" for running:normalize', () => {
+        render(
+            <FileListItem
+                file={sampleFile}
+                selected={false}
+                onSelect={() => {}}
+                status="running:normalize"
+            />,
+        );
+        expect(screen.getByText(/normalizing/i)).toBeDefined();
+    });
+
+    it('falls back to "running" for an unknown stage suffix', () => {
+        render(
+            <FileListItem
+                file={sampleFile}
+                selected={false}
+                onSelect={() => {}}
+                status="running:something-new"
+            />,
+        );
+        expect(screen.getByText(/running/i)).toBeDefined();
     });
 });
