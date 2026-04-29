@@ -85,3 +85,31 @@ def test_walk_media_files_raises_on_file_path(tmp_path: Path):
     f.write_bytes(b"")
     with pytest.raises(NotADirectoryError):
         walk_media_files(f)
+
+
+from engine.project import detect_mode
+
+
+def test_detect_mode_video_is_bwc(tmp_path: Path):
+    f = tmp_path / "x.mp4"
+    f.write_bytes(b"")
+    assert detect_mode(f) == "bwc"
+
+
+def test_detect_mode_audio_is_dme(tmp_path: Path):
+    f = tmp_path / "x.mp3"
+    f.write_bytes(b"")
+    assert detect_mode(f) == "dme"
+
+
+def test_detect_mode_uppercase_extension(tmp_path: Path):
+    f = tmp_path / "x.MP3"
+    f.write_bytes(b"")
+    assert detect_mode(f) == "dme"
+
+
+def test_detect_mode_unknown_extension_raises(tmp_path: Path):
+    f = tmp_path / "x.xyz"
+    f.write_bytes(b"")
+    with pytest.raises(ValueError):
+        detect_mode(f)

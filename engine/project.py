@@ -51,3 +51,22 @@ def walk_media_files(folder: Path) -> list[Path]:
 
     found.sort()
     return found
+
+
+def detect_mode(path: Path) -> str:
+    """Return ``"bwc"`` for video media, ``"dme"`` for audio media.
+
+    Mode detection is extension-based for Milestone 1. A future milestone may
+    upgrade to ffprobe-based detection (e.g., to handle audio-only `.mp4`
+    body-cam exports correctly), but the V1 heuristic is correct for the
+    sample set we have today.
+
+    Raises:
+        ValueError: ``path`` has no recognized media extension.
+    """
+    ext = Path(path).suffix.lstrip(".").lower()
+    if ext in VIDEO_EXTENSIONS:
+        return "bwc"
+    if ext in AUDIO_EXTENSIONS:
+        return "dme"
+    raise ValueError(f"unrecognized media extension: {path}")
