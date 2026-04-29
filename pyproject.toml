@@ -10,8 +10,18 @@ authors = [{ name = "Andy Schrader" }]
 license = { text = "Consumer Attorney Open Source License v1.0" }
 requires-python = ">=3.11,<3.13"
 
-# Milestone 0 has zero runtime deps — pipeline deps land in later milestones.
-dependencies = []
+# Stage 3 (DeepFilterNet) and Stage 4 (Silero VAD) bring the engine's first
+# real runtime deps. torch is a transitive of deepfilternet (CPU wheel by
+# default; GPU acceleration is a manual reinstall — see README).
+# torch/torchaudio are pinned <2.6 because deepfilternet 0.5.x uses
+# torchaudio.backend.common which was removed in torchaudio 2.6+.
+dependencies = [
+    "deepfilternet>=0.5",
+    "silero-vad>=5.0",
+    "soundfile>=0.12",
+    "torch>=1.12,<2.6",
+    "torchaudio>=0.12,<2.6",
+]
 
 [project.optional-dependencies]
 dev = [
