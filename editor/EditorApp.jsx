@@ -1,32 +1,53 @@
-import React, { useEffect, useState } from 'react';
-import { apiGet } from './api.js';
+import React, { useState } from 'react';
+import { apiPost } from './api.js';
+import EmptyState from './components/EmptyState.jsx';
+import ProjectView from './components/ProjectView.jsx';
 
 export default function EditorApp() {
-    const [version, setVersion] = useState(null);
+    const [manifest, setManifest] = useState(null);
+    const [selectedPath, setSelectedPath] = useState(null);
     const [error, setError] = useState(null);
 
-    useEffect(() => {
-        let cancelled = false;
-        apiGet('/api/version')
-            .then((data) => {
-                if (!cancelled) setVersion(data.version);
-            })
-            .catch((err) => {
-                if (!cancelled) setError(err.message);
-            });
-        return () => { cancelled = true; };
-    }, []);
+    async function openFolder() {
+        setError(null);
+        const folderPath = await window.electronAPI.pickFolder();
+        if (!folderPath) return; // user cancelled
+        try {
+            const result = await apiPost('/api/project/open', { path: folderPath });
+            setManifest(result);
+            setSelectedPath(null);
+        } catch (err) {
+            setError(err.message);
+        }
+    }
+
+    function closeProject() {
+        setManifest(null);
+        setSelectedPath(null);
+        setError(null);
+    }
+
+    function selectFile(file) {
+        setSelectedPath(file.path);
+    }
 
     return (
-        <div style={{ textAlign: 'center' }}>
-            <h1 style={{ fontSize: '2.5rem', margin: 0, color: '#5eead4' }}>BWC Clipper</h1>
-            <p style={{ marginTop: '0.5rem', color: '#8b949e' }}>
-                {error
-                    ? `engine error: ${error}`
-                    : version
-                    ? `engine v${version}`
-                    : 'connecting to engine…'}
-            </p>
+        <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {manifest === null ? (
+                <div>
+                    <EmptyState onOpenFolder={openFolder} />
+                    {error && (
+                        <p style={{ marginTop: '1rem', color: '#f87171', textAlign: 'center' }}>{error}</p>
+                    )}
+                </div>
+            ) : (
+                <ProjectView
+                    manifest={manifest}
+                    selectedPath={selectedPath}
+                    onSelectFile={selectFile}
+                    onCloseProject={closeProject}
+                />
+            )}
         </div>
     );
 }
