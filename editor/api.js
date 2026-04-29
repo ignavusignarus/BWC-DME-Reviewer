@@ -31,3 +31,21 @@ export async function apiGet(path) {
     }
     return response.json();
 }
+
+export async function apiPost(path, body) {
+    const base = await getBaseUrl();
+    const response = await fetch(`${base}${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+        let detail = '';
+        try {
+            const errorBody = await response.json();
+            detail = errorBody.error ? `: ${errorBody.error}` : '';
+        } catch (_) { /* not JSON */ }
+        throw new Error(`API ${path} returned ${response.status}${detail}`);
+    }
+    return response.json();
+}
