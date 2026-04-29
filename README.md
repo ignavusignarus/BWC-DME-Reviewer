@@ -2,7 +2,7 @@
 
 Local-only desktop tool for plaintiff-side review and clipping of body-worn camera (BWC) video and defense medical exam (DME) audio. The app ingests a folder of media, runs a self-contained transcription pipeline (Whisper + VAD + diarization + speech enhancement) on the user's GPU, and presents a reviewer UI in which the auto-generated transcript serves as a navigation aid for finding moments of interest in long, often non-speech-dense recordings. The user creates and exports trial-ready clips. Clips never carry a transcript overlay — the transcript is a tool for the reviewer, not a deliverable on the clip.
 
-> **Status:** Milestone 3 of 8 complete — Stage 2 normalize + pipeline chaining. After extracting audio (Stage 1), the engine now runs two-pass loudness normalization plus dynamic-range compression and bandpass filtering (per the brief's §4.2 ffmpeg chain). The UI status indicator reflects the active stage — `extracting…` → `normalizing…` → `✓`.
+> **Status:** Milestone 4 of 8 complete — full pre-AI pipeline (Stages 1–4). After extracting audio (Stage 1) and normalizing it (Stage 2), the engine runs DeepFilterNet 3 speech enhancement (Stage 3) and Silero voice activity detection (Stage 4). VAD output is persisted as `speech-segments.json` per source. The UI status indicator cycles through `extracting…` → `normalizing…` → `enhancing…` → `detecting speech…` → `✓`.
 
 ## License
 
@@ -45,6 +45,25 @@ python -m venv .venv
 # Node + Electron
 npm install
 ```
+
+#### GPU acceleration (optional)
+
+The default install pulls the CPU build of PyTorch. DeepFilterNet 3 enhancement
+and (in later milestones) Whisper transcription run several times faster on
+NVIDIA GPUs. To upgrade an existing venv to CUDA-enabled torch:
+
+```bash
+.venv/Scripts/python.exe -m pip install --index-url https://download.pytorch.org/whl/cu121 --upgrade torch torchaudio
+```
+
+Verify CUDA is detected:
+
+```bash
+.venv/Scripts/python.exe -c "import torch; print('CUDA available:', torch.cuda.is_available())"
+```
+
+Auto-detection of CUDA at runtime is handled by torch / DeepFilterNet directly
+once the CUDA wheels are installed; no engine code changes are required.
 
 ### Run the desktop app
 
