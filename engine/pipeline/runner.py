@@ -17,17 +17,22 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
 from typing import Callable
 
+from engine.pipeline.enhance import run_enhance_stage
 from engine.pipeline.extract import run_extract_stage
 from engine.pipeline.normalize import run_normalize_stage
 from engine.pipeline.state import StageStatus, load_state
+from engine.pipeline.vad import run_vad_stage
 from engine.source import source_cache_dir
 
 # Each stage is (name, runner_callable). The runner_callable signature is
-# ``fn(source_path, cache_dir) -> Any`` for extract; later stages take only
-# ``cache_dir`` once the audio's been extracted. We adapt with a lambda.
+# ``fn(source_path, cache_dir) -> Any`` — extract is the only stage that
+# reads the source media directly; later stages all read the per-source
+# cache from earlier stages.
 _PIPELINE_STAGES: list[tuple[str, Callable]] = [
     ("extract", lambda source, cache: run_extract_stage(source, cache)),
     ("normalize", lambda _source, cache: run_normalize_stage(cache)),
+    ("enhance", lambda _source, cache: run_enhance_stage(cache)),
+    ("vad", lambda _source, cache: run_vad_stage(cache)),
 ]
 
 
