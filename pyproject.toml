@@ -16,11 +16,13 @@ requires-python = ">=3.11,<3.13"
 # torch/torchaudio are pinned <2.6 because deepfilternet 0.5.x uses
 # torchaudio.backend.common which was removed in torchaudio 2.6+.
 dependencies = [
+    "torch>=1.12,<2.6",
+    "torchaudio>=0.12,<2.6",
     "deepfilternet>=0.5",
     "silero-vad>=5.0",
     "soundfile>=0.12",
-    "torch>=1.12,<2.6",
-    "torchaudio>=0.12,<2.6",
+    "faster-whisper>=1.0",
+    "whisperx>=3.1",
 ]
 
 [project.optional-dependencies]
