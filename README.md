@@ -2,7 +2,7 @@
 
 Local-only desktop tool for plaintiff-side review and clipping of body-worn camera (BWC) video and defense medical exam (DME) audio. The app ingests a folder of media, runs a self-contained transcription pipeline (Whisper + VAD + diarization + speech enhancement) on the user's GPU, and presents a reviewer UI in which the auto-generated transcript serves as a navigation aid for finding moments of interest in long, often non-speech-dense recordings. The user creates and exports trial-ready clips. Clips never carry a transcript overlay — the transcript is a tool for the reviewer, not a deliverable on the clip.
 
-> **Status:** Pre-implementation. Design spec is complete; implementation plan is being written.
+> **Status:** Milestone 1 of 8 complete — folder open + file enumeration. Run `npm start` to launch; pick a folder containing `.mp4`/`.mp3` files and the app lists them with mode badges (BWC for video, DME for audio).
 
 ## License
 
