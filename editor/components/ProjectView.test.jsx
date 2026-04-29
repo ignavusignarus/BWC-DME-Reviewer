@@ -93,3 +93,36 @@ describe('ProjectView', () => {
         expect(onCloseProject).toHaveBeenCalledTimes(1);
     });
 });
+
+describe('ProjectView status propagation', () => {
+    it('passes statuses to file rows by path', () => {
+        const statuses = {
+            'C:/case-folder/a.mp4': 'running',
+            'C:/case-folder/b.MP3': 'completed',
+        };
+        const { container } = render(
+            <ProjectView
+                manifest={sampleManifest}
+                selectedPath={null}
+                onSelectFile={() => {}}
+                onCloseProject={() => {}}
+                statuses={statuses}
+            />,
+        );
+        expect(container.querySelector('[data-status="running"]')).not.toBeNull();
+        expect(container.querySelector('[data-status="completed"]')).not.toBeNull();
+    });
+
+    it('does not require statuses prop', () => {
+        // Backwards-compatible: missing statuses doesn't break rendering.
+        render(
+            <ProjectView
+                manifest={sampleManifest}
+                selectedPath={null}
+                onSelectFile={() => {}}
+                onCloseProject={() => {}}
+            />,
+        );
+        expect(screen.getByText('a.mp4')).toBeDefined();
+    });
+});

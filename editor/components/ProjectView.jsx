@@ -1,7 +1,7 @@
 import React from 'react';
 import FileListItem from './FileListItem.jsx';
 
-export default function ProjectView({ manifest, selectedPath, onSelectFile, onCloseProject }) {
+export default function ProjectView({ manifest, selectedPath, onSelectFile, onCloseProject, statuses }) {
     return (
         <div
             style={{
@@ -65,6 +65,7 @@ export default function ProjectView({ manifest, selectedPath, onSelectFile, onCl
                             file={file}
                             selected={file.path === selectedPath}
                             onSelect={onSelectFile}
+                            status={statuses?.[file.path]}
                         />
                     ))}
                 </div>
