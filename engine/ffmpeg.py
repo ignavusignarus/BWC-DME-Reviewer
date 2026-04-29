@@ -36,3 +36,43 @@ def find_ffmpeg() -> Path:
 
 def find_ffprobe() -> Path:
     return _find_binary(FFPROBE_BINARY)
+
+
+import subprocess
+
+
+def run_ffmpeg(args: list[str], *, timeout: float | None = None) -> str:
+    """Run ffmpeg with the given arguments. Returns captured stdout.
+
+    Raises:
+        RuntimeError: ffmpeg exited non-zero. The exception message includes
+            the captured stderr.
+    """
+    binary = find_ffmpeg()
+    try:
+        result = subprocess.run(
+            [str(binary), *args],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+        return result.stdout
+    except subprocess.CalledProcessError as exc:
+        raise RuntimeError(f"ffmpeg failed (exit {exc.returncode}): {exc.stderr}") from exc
+
+
+def run_ffprobe(args: list[str], *, timeout: float | None = None) -> str:
+    """Run ffprobe with the given arguments. Returns captured stdout."""
+    binary = find_ffprobe()
+    try:
+        result = subprocess.run(
+            [str(binary), *args],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+        return result.stdout
+    except subprocess.CalledProcessError as exc:
+        raise RuntimeError(f"ffprobe failed (exit {exc.returncode}): {exc.stderr}") from exc
