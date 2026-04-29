@@ -46,12 +46,18 @@ def test_process_endpoint_submits_pipeline_and_returns_status(running_server, tm
         Path(args[-1]).touch()
         return ""
 
+    def _enhance_writes(in_path, out_path):
+        Path(out_path).parent.mkdir(parents=True, exist_ok=True)
+        Path(out_path).touch()
+
     with patch("engine.pipeline.extract.probe_audio_tracks") as probe_mock, \
          patch("engine.pipeline.extract.run_ffmpeg", side_effect=_ffmpeg_writes_output), \
          patch("engine.pipeline.normalize.run_loudnorm_measure",
                return_value={"input_i": "-12", "input_tp": "-1", "input_lra": "5",
                              "input_thresh": "-20", "target_offset": "0"}), \
-         patch("engine.pipeline.normalize.run_ffmpeg", side_effect=_ffmpeg_writes_output):
+         patch("engine.pipeline.normalize.run_ffmpeg", side_effect=_ffmpeg_writes_output), \
+         patch("engine.pipeline.enhance.enhance_audio_file", side_effect=_enhance_writes), \
+         patch("engine.pipeline.vad.vad_audio_file", return_value=[{"start": 0.0, "end": 1.0}]):
         probe_mock.return_value = [{"index": 0, "codec_name": "aac", "sample_rate": 48000, "channels": 1, "duration_seconds": 1.0}]
         response = requests.post(
             f"http://127.0.0.1:{running_server}/api/source/process",
@@ -88,12 +94,18 @@ def test_state_endpoint_completed_after_pipeline(running_server, tmp_path: Path)
         Path(args[-1]).touch()
         return ""
 
+    def _enhance_writes(in_path, out_path):
+        Path(out_path).parent.mkdir(parents=True, exist_ok=True)
+        Path(out_path).touch()
+
     with patch("engine.pipeline.extract.probe_audio_tracks") as probe_mock, \
          patch("engine.pipeline.extract.run_ffmpeg", side_effect=_ffmpeg_writes_output), \
          patch("engine.pipeline.normalize.run_loudnorm_measure",
                return_value={"input_i": "-12", "input_tp": "-1", "input_lra": "5",
                              "input_thresh": "-20", "target_offset": "0"}), \
-         patch("engine.pipeline.normalize.run_ffmpeg", side_effect=_ffmpeg_writes_output):
+         patch("engine.pipeline.normalize.run_ffmpeg", side_effect=_ffmpeg_writes_output), \
+         patch("engine.pipeline.enhance.enhance_audio_file", side_effect=_enhance_writes), \
+         patch("engine.pipeline.vad.vad_audio_file", return_value=[{"start": 0.0, "end": 1.0}]):
         probe_mock.return_value = [{"index": 0, "codec_name": "aac", "sample_rate": 48000, "channels": 1, "duration_seconds": 1.0}]
         requests.post(
             f"http://127.0.0.1:{running_server}/api/source/process",

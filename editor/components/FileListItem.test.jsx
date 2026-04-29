@@ -147,4 +147,28 @@ describe('FileListItem stage-aware status', () => {
         );
         expect(screen.getByText(/running/i)).toBeDefined();
     });
+
+    it('renders "enhancing…" for running:enhance', () => {
+        render(
+            <FileListItem
+                file={sampleFile}
+                selected={false}
+                onSelect={() => {}}
+                status="running:enhance"
+            />,
+        );
+        expect(screen.getByText(/enhancing/i)).toBeDefined();
+    });
+
+    it('renders "detecting speech…" for running:vad', () => {
+        render(
+            <FileListItem
+                file={sampleFile}
+                selected={false}
+                onSelect={() => {}}
+                status="running:vad"
+            />,
+        );
+        expect(screen.getByText(/detecting speech/i)).toBeDefined();
+    });
 });

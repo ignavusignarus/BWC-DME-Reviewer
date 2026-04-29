@@ -9,7 +9,9 @@ const MODE_COLORS = {
 const STAGE_LABELS = {
     extract: 'extracting…',
     normalize: 'normalizing…',
-    // Future stages (M4+): enhance, vad, transcribe, etc.
+    enhance: 'enhancing…',
+    vad: 'detecting speech…',
+    // Future stages (M5+): transcribe, align, diarize, etc.
 };
 
 const TERMINAL_LABELS = {
