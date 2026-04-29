@@ -9,6 +9,7 @@ or when the user has system ffmpeg installed), fall back to searching PATH.
 from __future__ import annotations
 
 import os
+import re
 import shutil
 from pathlib import Path
 
@@ -79,6 +80,49 @@ def run_ffprobe(args: list[str], *, timeout: float | None = None) -> str:
 
 
 import json
+
+
+# Required keys we expect in the loudnorm JSON output.
+_LOUDNORM_KEYS = ("input_i", "input_tp", "input_lra", "input_thresh", "target_offset")
+
+
+def run_loudnorm_measure(input_path: Path) -> dict[str, str]:
+    """First pass of two-pass loudnorm. Returns measured values as a dict
+    of strings (kept as strings because ffmpeg's second pass takes them
+    through unchanged on the command line).
+
+    Per brief §4.2: ``loudnorm=I=-16:LRA=11:TP=-1.5``.
+    """
+    binary = find_ffmpeg()
+    cmd = [
+        str(binary),
+        "-hide_banner",
+        "-i", str(input_path),
+        "-af", "loudnorm=I=-16:LRA=11:TP=-1.5:print_format=json",
+        "-f", "null",
+        "-",
+    ]
+    try:
+        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+    except subprocess.CalledProcessError as exc:
+        raise RuntimeError(f"ffmpeg loudnorm-measure failed: {exc.stderr}") from exc
+
+    # ffmpeg writes the JSON object near the end of stderr. Find the last
+    # balanced single-level { ... } block and parse it. ffmpeg's loudnorm
+    # output is always a flat object; if a future version emits nested JSON
+    # this regex will need to grow.
+    match = re.search(r"\{[^{}]*\}", result.stderr, re.DOTALL)
+    if match is None:
+        raise RuntimeError(
+            "loudnorm did not emit a JSON measurement block. "
+            f"Last stderr lines:\n{result.stderr[-500:]}"
+        )
+    try:
+        data = json.loads(match.group(0))
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"loudnorm JSON parse failed: {exc}") from exc
+
+    return {k: str(data[k]) for k in _LOUDNORM_KEYS if k in data}
 
 
 def probe_audio_tracks(path: Path) -> list[dict]:

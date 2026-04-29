@@ -2,7 +2,7 @@
 
 Local-only desktop tool for plaintiff-side review and clipping of body-worn camera (BWC) video and defense medical exam (DME) audio. The app ingests a folder of media, runs a self-contained transcription pipeline (Whisper + VAD + diarization + speech enhancement) on the user's GPU, and presents a reviewer UI in which the auto-generated transcript serves as a navigation aid for finding moments of interest in long, often non-speech-dense recordings. The user creates and exports trial-ready clips. Clips never carry a transcript overlay — the transcript is a tool for the reviewer, not a deliverable on the clip.
 
-> **Status:** Milestone 2 of 8 complete — ffmpeg integration + audio extraction. App downloads ffmpeg on first launch, extracts each media file's audio tracks to 16 kHz mono WAVs in the project's hidden cache, and shows live processing status on each file row.
+> **Status:** Milestone 3 of 8 complete — Stage 2 normalize + pipeline chaining. After extracting audio (Stage 1), the engine now runs two-pass loudness normalization plus dynamic-range compression and bandpass filtering (per the brief's §4.2 ffmpeg chain). The UI status indicator reflects the active stage — `extracting…` → `normalizing…` → `✓`.
 
 ## License
 

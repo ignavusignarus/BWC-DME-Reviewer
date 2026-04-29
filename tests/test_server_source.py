@@ -38,12 +38,20 @@ def _touch(p: Path, content: bytes = b""):
     p.write_bytes(content)
 
 
-def test_process_endpoint_submits_extract_and_returns_status(running_server, tmp_path: Path):
+def test_process_endpoint_submits_pipeline_and_returns_status(running_server, tmp_path: Path):
     source = tmp_path / "officer.mp4"
     _touch(source, b"x")
 
+    def _ffmpeg_writes_output(args, **kwargs):
+        Path(args[-1]).touch()
+        return ""
+
     with patch("engine.pipeline.extract.probe_audio_tracks") as probe_mock, \
-         patch("engine.pipeline.extract.run_ffmpeg", return_value=""):
+         patch("engine.pipeline.extract.run_ffmpeg", side_effect=_ffmpeg_writes_output), \
+         patch("engine.pipeline.normalize.run_loudnorm_measure",
+               return_value={"input_i": "-12", "input_tp": "-1", "input_lra": "5",
+                             "input_thresh": "-20", "target_offset": "0"}), \
+         patch("engine.pipeline.normalize.run_ffmpeg", side_effect=_ffmpeg_writes_output):
         probe_mock.return_value = [{"index": 0, "codec_name": "aac", "sample_rate": 48000, "channels": 1, "duration_seconds": 1.0}]
         response = requests.post(
             f"http://127.0.0.1:{running_server}/api/source/process",
@@ -52,7 +60,11 @@ def test_process_endpoint_submits_extract_and_returns_status(running_server, tmp
         )
     assert response.status_code == 200
     body = response.json()
-    assert body["status"] in ("queued", "running", "completed")
+    assert (
+        body["status"] == "queued"
+        or body["status"].startswith("running:")
+        or body["status"] == "completed"
+    )
 
 
 def test_state_endpoint_idle_for_unprocessed_source(running_server, tmp_path: Path):
@@ -68,14 +80,21 @@ def test_state_endpoint_idle_for_unprocessed_source(running_server, tmp_path: Pa
     assert response.json() == {"status": "idle"}
 
 
-def test_state_endpoint_completed_after_extract(running_server, tmp_path: Path):
+def test_state_endpoint_completed_after_pipeline(running_server, tmp_path: Path):
     source = tmp_path / "officer.mp4"
     _touch(source, b"x")
 
+    def _ffmpeg_writes_output(args, **kwargs):
+        Path(args[-1]).touch()
+        return ""
+
     with patch("engine.pipeline.extract.probe_audio_tracks") as probe_mock, \
-         patch("engine.pipeline.extract.run_ffmpeg", return_value=""):
+         patch("engine.pipeline.extract.run_ffmpeg", side_effect=_ffmpeg_writes_output), \
+         patch("engine.pipeline.normalize.run_loudnorm_measure",
+               return_value={"input_i": "-12", "input_tp": "-1", "input_lra": "5",
+                             "input_thresh": "-20", "target_offset": "0"}), \
+         patch("engine.pipeline.normalize.run_ffmpeg", side_effect=_ffmpeg_writes_output):
         probe_mock.return_value = [{"index": 0, "codec_name": "aac", "sample_rate": 48000, "channels": 1, "duration_seconds": 1.0}]
-        # Submit and wait for completion
         requests.post(
             f"http://127.0.0.1:{running_server}/api/source/process",
             json={"folder": str(tmp_path), "source": str(source)},

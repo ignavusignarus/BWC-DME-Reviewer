@@ -6,9 +6,14 @@ const MODE_COLORS = {
     dme: { bg: '#3a2d0e', fg: '#fbbf24' },
 };
 
-const STATUS_LABELS = {
+const STAGE_LABELS = {
+    extract: 'extracting…',
+    normalize: 'normalizing…',
+    // Future stages (M4+): enhance, vad, transcribe, etc.
+};
+
+const TERMINAL_LABELS = {
     queued: 'queued',
-    running: 'extracting…',
     completed: '',
     failed: 'failed',
 };
@@ -20,6 +25,20 @@ const STATUS_COLORS = {
     failed: '#f87171',
 };
 
+function statusKey(status) {
+    // 'running:extract' → 'running'; 'completed' → 'completed'.
+    const colon = status.indexOf(':');
+    return colon >= 0 ? status.slice(0, colon) : status;
+}
+
+function statusLabel(status) {
+    if (status.startsWith('running:')) {
+        const stage = status.slice('running:'.length);
+        return STAGE_LABELS[stage] ?? 'running';
+    }
+    return TERMINAL_LABELS[status] ?? status;
+}
+
 function formatSize(bytes) {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -29,9 +48,10 @@ function formatSize(bytes) {
 
 function StatusIndicator({ status }) {
     if (!status) return null;
-    const color = STATUS_COLORS[status] ?? '#6e7681';
-    const label = STATUS_LABELS[status] ?? status;
-    const glyph = status === 'completed' ? '✓' : status === 'failed' ? '✗' : '●';
+    const key = statusKey(status);
+    const color = STATUS_COLORS[key] ?? '#6e7681';
+    const label = statusLabel(status);
+    const glyph = key === 'completed' ? '✓' : key === 'failed' ? '✗' : '●';
     return (
         <span
             data-status={status}
