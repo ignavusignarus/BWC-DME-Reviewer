@@ -171,6 +171,7 @@ class BWCRequestHandler(BaseHTTPRequestHandler):
             "/api/source/process": self._handle_source_process,
             "/api/source/context": self._handle_source_context,
             "/api/source/retranscribe": self._handle_source_retranscribe,
+            "/api/project/reviewer-state": self._handle_reviewer_state_post,
         }
 
     def do_GET(self):
@@ -208,6 +209,16 @@ class BWCRequestHandler(BaseHTTPRequestHandler):
                 status, body = self._handle_transcript(parse_qs(split.query))
             except Exception as exc:
                 logger.exception("/api/source/transcript crashed")
+                self._send_json(500, {"error": "internal", "detail": str(exc)})
+                return
+            self._send_json(status, body)
+            return
+
+        if split.path == "/api/project/reviewer-state":
+            try:
+                status, body = self._handle_reviewer_state_get(parse_qs(split.query))
+            except Exception as exc:
+                logger.exception("/api/project/reviewer-state crashed")
                 self._send_json(500, {"error": "internal", "detail": str(exc)})
                 return
             self._send_json(status, body)
@@ -380,6 +391,24 @@ class BWCRequestHandler(BaseHTTPRequestHandler):
             "transcript": transcript,
             "speech_segments": tracks[0] if tracks else [],
         }
+
+    def _handle_reviewer_state_get(self, query: dict) -> tuple[int, dict]:
+        from engine.reviewer_state import load_reviewer_state
+        folder_list = query.get("folder", [])
+        if not folder_list:
+            return 400, {"error": "missing 'folder'"}
+        return 200, load_reviewer_state(Path(folder_list[0]))
+
+    def _handle_reviewer_state_post(self, body: dict) -> tuple[int, dict]:
+        from engine.reviewer_state import save_reviewer_state
+        folder = body.get("folder")
+        last_source = body.get("last_source")
+        if not isinstance(folder, str) or not folder:
+            return 400, {"error": "missing 'folder'"}
+        if last_source is not None and not isinstance(last_source, str):
+            return 400, {"error": "'last_source' must be a string or null"}
+        save_reviewer_state(Path(folder), {"last_source": last_source})
+        return 200, {"ok": True}
 
     def _handle_media_route(self, query: dict, kind: str) -> None:
         folder_list = query.get("folder", [])
