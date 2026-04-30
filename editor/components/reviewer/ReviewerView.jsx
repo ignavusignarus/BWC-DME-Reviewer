@@ -33,13 +33,29 @@ export default function ReviewerView({ folder, source, onBack, manifest }) {
     const [playing, setPlaying] = useState(false);
 
     useEffect(() => {
+        let cancelled = false;
+        // Reset state immediately so the previous source's data doesn't flash
+        // through during the fetch. Important for cross-source navigation.
+        setTranscript(null);
+        setSpeechSegments(null);
+        setError(null);
+        setCurrentTime(0);
+        setDuration(0);
+        setPlaying(false);
+
         const params = new URLSearchParams({ folder, source: source.path });
         apiGet(`/api/source/transcript?${params.toString()}`)
             .then((doc) => {
+                if (cancelled) return;
                 setTranscript(doc.transcript);
                 setSpeechSegments(doc.speech_segments);
             })
-            .catch(() => setError('Failed to load transcript'));
+            .catch(() => {
+                if (cancelled) return;
+                setError('Failed to load transcript');
+            });
+
+        return () => { cancelled = true; };
     }, [folder, source.path]);
 
     const seekTo = useCallback((seconds) => {
