@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { apiPost, apiGet } from './api.js';
 import EmptyState from './components/EmptyState.jsx';
 import ProjectView from './components/ProjectView.jsx';
+import ReviewerView from './components/reviewer/ReviewerView.jsx';
 
 const POLL_INTERVAL_MS = 1000;
 function isActiveStatus(s) {
@@ -13,6 +14,8 @@ export default function EditorApp() {
     const [selectedPath, setSelectedPath] = useState(null);
     const [statuses, setStatuses] = useState({});
     const [error, setError] = useState(null);
+    const [view, setView] = useState('empty');
+    const [reviewSource, setReviewSource] = useState(null);
     const pollHandle = useRef(null);
 
     async function openFolder() {
@@ -24,6 +27,7 @@ export default function EditorApp() {
             setManifest(result);
             setSelectedPath(null);
             setStatuses({});
+            setView('project');
         } catch (err) {
             setError(err.message);
         }
@@ -33,12 +37,30 @@ export default function EditorApp() {
         setManifest(null);
         setSelectedPath(null);
         setStatuses({});
+        setReviewSource(null);
+        setView('empty');
         setError(null);
         stopPolling();
     }
 
     async function selectFile(file) {
         setSelectedPath(file.path);
+        // If this source has already completed processing, route to reviewer view.
+        const cachedStatus = statuses[file.path];
+        if (cachedStatus === 'completed' || file.completed) {
+            setReviewSource(file);
+            setView('reviewer');
+            try {
+                await apiPost('/api/project/reviewer-state', {
+                    folder: manifest.folder,
+                    last_source: file.path,
+                });
+            } catch (err) {
+                console.warn('[reviewer-state] save failed:', err);
+            }
+            return;
+        }
+        // Otherwise, kick off processing as before.
         setStatuses((s) => ({ ...s, [file.path]: 'queued' }));
         try {
             const resp = await apiPost('/api/source/process', {
@@ -48,11 +70,19 @@ export default function EditorApp() {
             setStatuses((s) => ({ ...s, [file.path]: resp.status }));
             if (isActiveStatus(resp.status)) {
                 startPolling(file.path);
+            } else if (resp.status === 'completed') {
+                // If processing was a no-op (already completed), allow routing to reviewer next click.
+                setStatuses((s) => ({ ...s, [file.path]: 'completed' }));
             }
         } catch (err) {
             setStatuses((s) => ({ ...s, [file.path]: 'failed' }));
             setError(err.message);
         }
+    }
+
+    function backToProject() {
+        setView('project');
+        setReviewSource(null);
     }
 
     function startPolling(path) {
@@ -82,20 +112,29 @@ export default function EditorApp() {
 
     return (
         <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            {manifest === null ? (
+            {view === 'empty' && (
                 <div>
                     <EmptyState onOpenFolder={openFolder} />
                     {error && (
                         <p style={{ marginTop: '1rem', color: '#f87171', textAlign: 'center' }}>{error}</p>
                     )}
                 </div>
-            ) : (
+            )}
+            {view === 'project' && manifest !== null && (
                 <ProjectView
                     manifest={manifest}
                     selectedPath={selectedPath}
                     onSelectFile={selectFile}
                     onCloseProject={closeProject}
                     statuses={statuses}
+                />
+            )}
+            {view === 'reviewer' && manifest !== null && reviewSource !== null && (
+                <ReviewerView
+                    folder={manifest.folder}
+                    source={reviewSource}
+                    onBack={backToProject}
+                    manifest={manifest}
                 />
             )}
         </div>

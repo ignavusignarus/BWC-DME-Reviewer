@@ -10,11 +10,11 @@ const SAMPLE_MANIFEST = {
     ],
 };
 
-function setupFetchStub({ initialStatus = 'idle', sequence = [] } = {}) {
+function setupFetchStub({ initialStatus = 'idle', sequence = [], openManifest = SAMPLE_MANIFEST } = {}) {
     let stateCalls = 0;
     return vi.fn((url, opts) => {
         if (url.endsWith('/api/project/open')) {
-            return Promise.resolve({ ok: true, json: () => Promise.resolve(SAMPLE_MANIFEST) });
+            return Promise.resolve({ ok: true, json: () => Promise.resolve(openManifest) });
         }
         if (url.endsWith('/api/source/process')) {
             return Promise.resolve({ ok: true, json: () => Promise.resolve({ status: 'queued' }) });
@@ -23,6 +23,9 @@ function setupFetchStub({ initialStatus = 'idle', sequence = [] } = {}) {
             const next = sequence[stateCalls] ?? sequence[sequence.length - 1] ?? initialStatus;
             stateCalls += 1;
             return Promise.resolve({ ok: true, json: () => Promise.resolve({ status: next }) });
+        }
+        if (url.endsWith('/api/project/reviewer-state')) {
+            return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
         }
         return Promise.reject(new Error('unexpected url: ' + url));
     });
@@ -74,6 +77,29 @@ describe('EditorApp', () => {
                 }),
             );
         });
+    });
+
+    it('routes to reviewer view when selecting a source with completed status', async () => {
+        const completedManifest = {
+            folder: 'C:/case-folder',
+            files: [
+                { basename: 'officer.mp4', path: 'C:/case-folder/officer.mp4', extension: 'mp4', mode: 'bwc', size_bytes: 1024, completed: true },
+            ],
+        };
+        global.fetch = setupFetchStub({ openManifest: completedManifest });
+        render(<EditorApp />);
+
+        // Open folder → lands on project view
+        fireEvent.click(screen.getByRole('button', { name: /open folder/i }));
+        await waitFor(() => expect(screen.getByText('officer.mp4')).toBeDefined());
+
+        // Click completed source → should route to reviewer placeholder
+        fireEvent.click(screen.getByText('officer.mp4'));
+        await waitFor(() => expect(screen.getByTestId('reviewer-placeholder')).toBeDefined());
+
+        // Back button returns to project view
+        fireEvent.click(screen.getByRole('button', { name: /project/i }));
+        await waitFor(() => expect(screen.getByText('officer.mp4')).toBeDefined());
     });
 
     it('polls source state across stages and updates UI to completed', async () => {
