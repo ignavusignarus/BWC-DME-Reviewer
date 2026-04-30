@@ -6,11 +6,34 @@ parse it. Keeps running until killed.
 """
 import logging
 import socket
+import socketserver
 import sys
+import traceback
 from http.server import HTTPServer
 
 from engine.server import BWCRequestHandler
 from engine.version import BWC_CLIPPER_VERSION
+
+
+class ThreadedHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
+    """Multithreaded HTTP server.
+
+    ThreadingMixIn is required because the browser's <audio>/<video> elements
+    keep open HTTP connections for Range-based streaming. Without threading,
+    a streaming response blocks all other requests until it finishes.
+
+    daemon_threads = True so request-handler threads do not block process
+    shutdown when the server is stopped.
+    """
+
+    daemon_threads = True
+
+    def handle_error(self, request, client_address):
+        logging.getLogger("bwc-clipper.serve").warning(
+            "request handler error from %s: %s",
+            client_address,
+            traceback.format_exc(),
+        )
 
 
 def pick_free_port() -> int:
@@ -45,7 +68,7 @@ def main() -> int:
     # can robustly parse it without confusing log output.
     print(f"BWC_CLIPPER_PORT={port}", flush=True)
 
-    server = HTTPServer(("127.0.0.1", port), BWCRequestHandler)
+    server = ThreadedHTTPServer(("127.0.0.1", port), BWCRequestHandler)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
