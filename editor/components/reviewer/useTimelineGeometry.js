@@ -17,6 +17,8 @@ const SPEECH_FLEX_PER_SECOND = 1.0;
  *   - key: stable React key
  */
 export function computeCells({ speechSegments, durationSeconds, mode, expandedSilenceIndex }) {
+    if (!durationSeconds || durationSeconds <= 0) return [];
+
     const cells = [];
     let cursor = 0;
     let silenceCount = 0;
@@ -64,6 +66,6 @@ export function computeCells({ speechSegments, durationSeconds, mode, expandedSi
 export function useTimelineGeometry(args) {
     return useMemo(
         () => computeCells(args),
-        [args.speechSegments, args.durationSeconds, args.mode, args.expandedSilenceIndex]
+        [args.speechSegments, args.durationSeconds, args.expandedSilenceIndex]
     );
 }
