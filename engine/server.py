@@ -152,6 +152,10 @@ def reset_pipeline_runner() -> None:
 class BWCRequestHandler(BaseHTTPRequestHandler):
     """Routes requests to handler methods. JSON in, JSON out."""
 
+    # Mode determined by file extension; must agree with engine/project.py.
+    _AUDIO_EXTS = {".mp3", ".wav", ".m4a", ".flac", ".aac", ".ogg"}
+    _VIDEO_EXTS = {".mp4", ".mov", ".mkv", ".avi", ".webm"}
+
     def log_message(self, format, *args):
         logger.debug("%s - %s", self.address_string(), format % args)
 
@@ -188,6 +192,13 @@ class BWCRequestHandler(BaseHTTPRequestHandler):
             except Exception as exc:  # pragma: no cover
                 logger.exception("/api/source/state crashed")
                 self._send_json(500, {"error": "internal", "detail": str(exc)})
+            return
+
+        if split.path == "/api/source/audio":
+            self._handle_media_route(parse_qs(split.query), kind="audio")
+            return
+        if split.path == "/api/source/video":
+            self._handle_media_route(parse_qs(split.query), kind="video")
             return
 
         self._send_json(404, {"error": "not found", "path": split.path})
@@ -277,6 +288,38 @@ class BWCRequestHandler(BaseHTTPRequestHandler):
             Path(folder_list[0]), Path(source_list[0])
         )
         return 200, {"status": status}
+
+    def _handle_media_route(self, query: dict, kind: str) -> None:
+        folder_list = query.get("folder", [])
+        source_list = query.get("source", [])
+        if not folder_list or not source_list:
+            self._send_json(400, {"error": "missing 'folder' or 'source' query parameter"})
+            return
+        folder = Path(folder_list[0]).resolve()
+        source = Path(source_list[0]).resolve()
+
+        # Defense in depth: source must be inside the project folder.
+        try:
+            source.relative_to(folder)
+        except ValueError:
+            self._send_json(400, {"error": "source is not inside folder"})
+            return
+
+        if not source.is_file():
+            self._send_json(404, {"error": "source not found", "path": str(source)})
+            return
+
+        ext = source.suffix.lower()
+        if kind == "audio":
+            if ext in BWCRequestHandler._VIDEO_EXTS:
+                self._send_json(415, {"error": "source is video; use /api/source/video"})
+                return
+            self._serve_media(source, fallback_mime="audio/wav")
+        else:  # kind == "video"
+            if ext in BWCRequestHandler._AUDIO_EXTS:
+                self._send_json(415, {"error": "source is audio; use /api/source/audio"})
+                return
+            self._serve_media(source, fallback_mime="video/mp4")
 
     # ── Response helper ──
 
