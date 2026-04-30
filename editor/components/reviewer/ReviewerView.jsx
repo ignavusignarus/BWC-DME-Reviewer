@@ -6,7 +6,7 @@ import MediaPane from './MediaPane.jsx';
 import TranscriptPanel from './TranscriptPanel.jsx';
 import ContextNamesPanel from './ContextNamesPanel.jsx';
 import { usePolling } from '../../usePolling.js';
-function TimelinePlaceholder() { return <div data-testid="timeline" style={{ height: 60, background: '#0d1117', borderTop: '1px solid #21262d' }} />; }
+import Timeline from './Timeline.jsx';
 
 export default function ReviewerView({ folder, source, onBack, manifest }) {
     const [searchQuery, setSearchQuery] = useState('');
@@ -112,7 +112,11 @@ export default function ReviewerView({ folder, source, onBack, manifest }) {
                             onPlay={onPlay}
                             onPause={onPause}
                         />
-                        <TimelinePlaceholder />
+                        <Timeline
+                            speechSegments={speechSegments || []}
+                            duration={transcript?.source?.duration_seconds || 0}
+                            searchMatches={[]}
+                        />
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, borderLeft: '1px solid #21262d' }}>
                         {staleTranscript && retranscribeStatus === 'failed' && (
