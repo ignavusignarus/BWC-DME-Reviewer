@@ -170,6 +170,7 @@ class BWCRequestHandler(BaseHTTPRequestHandler):
             "/api/project/open": self._handle_project_open,
             "/api/source/process": self._handle_source_process,
             "/api/source/context": self._handle_source_context,
+            "/api/source/retranscribe": self._handle_source_retranscribe,
         }
 
     def do_GET(self):
@@ -313,6 +314,18 @@ class BWCRequestHandler(BaseHTTPRequestHandler):
             encoding="utf-8",
         )
         return 200, {"ok": True}
+
+    def _handle_source_retranscribe(self, body: dict) -> tuple[int, dict]:
+        folder = body.get("folder")
+        source = body.get("source")
+        if not isinstance(folder, str) or not folder:
+            return 400, {"error": "missing 'folder'"}
+        if not isinstance(source, str) or not source:
+            return 400, {"error": "missing 'source'"}
+        runner = get_pipeline_runner()
+        runner.rerun_from_stage("transcribe", Path(folder), Path(source))
+        status = runner.get_status(Path(folder), Path(source))
+        return 200, {"status": status}
 
     def _handle_source_state(self, query: dict) -> tuple[int, dict]:
         folder_list = query.get("folder", [])
