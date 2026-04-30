@@ -39,7 +39,11 @@ def _build_basic_cache(tmp_path: Path, sample_wav: Path, stage_dir: str = "enhan
 # ── Stage 3: DeepFilterNet enhance ────────────────────────────────────────
 
 def test_real_enhance_runs_on_sample(tmp_path: Path, sample_short_wav: Path):
-    """DF3 actually runs on real audio, produces a real-bytes WAV out."""
+    """DF3 actually runs on real audio, produces a real-bytes WAV out
+    at the SAME duration as the input (not 3x longer due to the
+    save_audio sample-rate mismatch bug)."""
+    import soundfile as sf
+
     from engine.pipeline.enhance import run_enhance_stage
     cache_dir = _build_basic_cache(tmp_path, sample_short_wav, stage_dir="normalized")
 
@@ -49,6 +53,19 @@ def test_real_enhance_runs_on_sample(tmp_path: Path, sample_short_wav: Path):
     out_wav = outputs[0]
     assert out_wav.is_file()
     assert out_wav.stat().st_size > 1000  # real audio data, not just a header
+
+    # Critical: output duration must match input. The fixture is 15s; the
+    # enhanced output must also be ~15s. The save_audio sample-rate-mismatch
+    # bug produces 45s output (48k data labeled as 16k = 3x longer).
+    in_info = sf.info(str(sample_short_wav))
+    out_info = sf.info(str(out_wav))
+    assert out_info.samplerate == 16000, \
+        f"Enhanced WAV not at 16 kHz: {out_info.samplerate}"
+    duration_ratio = out_info.duration / in_info.duration
+    assert 0.95 < duration_ratio < 1.05, \
+        (f"Enhanced output duration {out_info.duration:.2f}s vs input "
+         f"{in_info.duration:.2f}s (ratio={duration_ratio:.2f}). "
+         f"Likely the save_audio sample-rate-mismatch bug.")
 
 
 # ── Stage 4: Silero VAD ────────────────────────────────────────────────────

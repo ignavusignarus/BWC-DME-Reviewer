@@ -51,21 +51,29 @@ def _get_df_model():
 def enhance_audio_file(in_path: Path, out_path: Path) -> None:
     """Read a WAV, run DeepFilterNet 3 over it, write the enhanced WAV.
 
-    DF3 operates internally at 48 kHz; we use df.enhance.load_audio + save_audio
-    which handle resampling so input/output stay at the source's native rate
-    (16 kHz from Stage 2). Tests mock this function — the underlying df calls
-    are not exercised in unit tests.
+    DF3 operates internally at 48 kHz; we use df.enhance.load_audio to
+    resample the input. After enhancement, we resample the 48 kHz output
+    back down to 16 kHz BEFORE writing — df.enhance.save_audio doesn't
+    resample, it just writes the tensor's samples at the claimed sample
+    rate, so passing sr=16000 with 48 kHz audio data produces a 3x-too-long
+    WAV.
+
+    Tests mock this function — the underlying df calls are not exercised
+    in unit tests.
     """
+    import torchaudio.functional as F
     from df.enhance import enhance, load_audio, save_audio
 
     model, df_state, *_ = _get_df_model()
-    # Resample input to the model's native rate (48 kHz for DF3).
+    # Load + resample input to the model's native rate (48 kHz for DF3).
     audio, _in_sr = load_audio(str(in_path), sr=df_state.sr())
     enhanced = enhance(model, df_state, audio)
+    # Resample 48 kHz → 16 kHz before saving so the cache layout stays
+    # consistent for Stage 4 (Silero VAD wants 16 kHz) and downstream
+    # stages.
+    enhanced_16k = F.resample(enhanced, df_state.sr(), 16000)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    # Save at 16 kHz to keep cache layout consistent for Stage 4 (Silero VAD,
-    # which expects 16 kHz). save_audio resamples internally.
-    save_audio(str(out_path), enhanced, 16000)
+    save_audio(str(out_path), enhanced_16k, 16000)
 
 
 def run_enhance_stage(cache_dir: Path) -> list[Path]:
