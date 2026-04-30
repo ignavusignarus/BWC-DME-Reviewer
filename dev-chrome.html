@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <!--
+      Dev-only entry point for driving the BWC Clipper UI from a real Chrome
+      instance (no Electron). Differences vs index.html:
+        - Loads dev-shim.js BEFORE editor-bundle.js to install window.electronAPI
+        - CSP loosened to allow loopback HTTP/media on any 127.0.0.1 port
+        - A dev banner shows engine + folder state; both are read from URL
+          query params (?engine=PORT&folder=PATH) by the shim
+      Production launches via Electron + index.html and never touches this file.
+    -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' http://127.0.0.1:* ws://127.0.0.1:*; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src http://127.0.0.1:* ws://127.0.0.1:*; media-src http://127.0.0.1:* blob: data:; img-src 'self' data: blob:;">
+    <title>BWC Clipper (dev/Chrome)</title>
+    <style>
+        html, body { margin: 0; padding: 0; height: 100%; background: #0d1117; color: #c9d1d9;
+                     font-family: -apple-system, system-ui, sans-serif; }
+        #dev-banner {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 9999;
+            background: #1f2937; color: #fbbf24; font-size: 11px;
+            padding: 4px 10px; border-bottom: 1px solid #374151;
+            font-family: ui-monospace, Menlo, Consolas, monospace;
+            display: flex; gap: 16px; align-items: center;
+        }
+        #dev-banner .label { color: #9ca3af; }
+        #dev-banner code { color: #fbbf24; }
+        #dev-banner .warn { color: #f87171; }
+        #root { height: 100%; padding-top: 24px; box-sizing: border-box;
+                display: flex; align-items: stretch; justify-content: stretch; }
+    </style>
+</head>
+<body>
+    <div id="dev-banner">
+        <span class="label">DEV (Chrome)</span>
+        <span><span class="label">engine:</span> <code id="dev-engine">?</code></span>
+        <span><span class="label">folder:</span> <code id="dev-folder">(unset)</code></span>
+        <span id="dev-warn"></span>
+    </div>
+    <div id="root"></div>
+    <script src="dev-shim.js"></script>
+    <script src="editor-bundle.js"></script>
+</body>
+</html>
