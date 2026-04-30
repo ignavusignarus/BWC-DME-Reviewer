@@ -8,7 +8,7 @@ import ContextNamesPanel from './ContextNamesPanel.jsx';
 import { usePolling } from '../../usePolling.js';
 import Timeline from './Timeline.jsx';
 
-export default function ReviewerView({ folder, source, onBack, manifest }) {
+export default function ReviewerView({ folder, source, onBack, manifest, onSelectSource }) {
     const [searchInput, setSearchInput] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
     const [activeMatchIndex, setActiveMatchIndex] = useState(-1);
@@ -108,6 +108,56 @@ export default function ReviewerView({ folder, source, onBack, manifest }) {
         seekTo(searchMatches[next].start);
     }, [searchMatches, activeMatchIndex, seekTo]);
 
+    useEffect(() => {
+        const onKey = (e) => {
+            const tag = (e.target && e.target.tagName) || '';
+            if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+            switch (e.key) {
+                case ' ':
+                    e.preventDefault();
+                    if (audioRef.current?.paused) play(); else pause();
+                    break;
+                case 'k':
+                case 'K':
+                    pause();
+                    break;
+                case 'j':
+                case 'J':
+                    if (audioRef.current) audioRef.current.playbackRate = -1;
+                    play();
+                    break;
+                case 'l':
+                case 'L':
+                    if (audioRef.current) audioRef.current.playbackRate = 1;
+                    play();
+                    break;
+                case 'ArrowLeft':
+                    e.preventDefault();
+                    seekTo((audioRef.current?.currentTime || 0) + (e.shiftKey ? -1 : -5));
+                    break;
+                case 'ArrowRight':
+                    e.preventDefault();
+                    seekTo((audioRef.current?.currentTime || 0) + (e.shiftKey ? 1 : 5));
+                    break;
+                case '/':
+                    e.preventDefault();
+                    document.querySelector('input[placeholder*="Search" i]')?.focus();
+                    break;
+                case 's':
+                case 'S':
+                    if (e.ctrlKey || e.metaKey) e.preventDefault();
+                    break;
+                case 'Escape':
+                    if (document.activeElement?.tagName === 'INPUT') document.activeElement.blur();
+                    break;
+                default:
+                    return;
+            }
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [play, pause, seekTo]);
+
     const ctx = useMemo(() => ({
         audioRef,
         currentTime, duration, playing,
@@ -130,7 +180,7 @@ export default function ReviewerView({ folder, source, onBack, manifest }) {
                     manifest={manifest}
                     source={source}
                     onBack={onBack}
-                    onSelectSource={(f) => { /* TODO(task-21): cross-source nav */ }}
+                    onSelectSource={onSelectSource}
                     retranscribeStatus={retranscribeStatus}
                 />
                 <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 360px', minHeight: 0 }}>

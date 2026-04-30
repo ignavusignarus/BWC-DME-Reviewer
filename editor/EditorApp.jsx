@@ -95,6 +95,15 @@ export default function EditorApp() {
         setReviewSource(null);
     }
 
+    async function selectReviewerSource(file) {
+        setReviewSource(file);
+        try {
+            await apiPost('/api/project/reviewer-state', { folder: manifest.folder, last_source: file.path });
+        } catch (err) {
+            console.warn('[reviewer-state] save failed:', err);
+        }
+    }
+
     function startPolling(path) {
         stopPolling();
         pollHandle.current = setInterval(async () => {
@@ -141,10 +150,12 @@ export default function EditorApp() {
             )}
             {view === 'reviewer' && manifest !== null && reviewSource !== null && (
                 <ReviewerView
+                    key={reviewSource.path}
                     folder={manifest.folder}
                     source={reviewSource}
                     onBack={backToProject}
                     manifest={manifest}
+                    onSelectSource={selectReviewerSource}
                 />
             )}
         </div>
