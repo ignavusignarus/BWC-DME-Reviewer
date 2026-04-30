@@ -17,6 +17,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+from engine.device import select_device
 from engine.pipeline.state import (
     StageStatus,
     load_state,
@@ -40,8 +41,8 @@ def _get_align_model(language_code: str = "en"):
     global _align_init
     if _align_init is None:
         import whisperx
-        # device="cpu" matches the M5 transcribe stage. CUDA enablement is M7+.
-        model, metadata = whisperx.load_align_model(language_code=language_code, device="cpu")
+        device = select_device()
+        model, metadata = whisperx.load_align_model(language_code=language_code, device=device)
         _align_init = (model, metadata)
     return _align_init
 
@@ -62,7 +63,7 @@ def align_segments(segments: list[dict], audio_path: Path) -> list[dict]:
         model,
         metadata,
         audio,
-        device="cpu",
+        device=select_device(),
         return_char_alignments=False,
     )
     # WhisperX returns a dict with a "segments" key. Each segment has a "words"

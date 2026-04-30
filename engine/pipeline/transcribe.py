@@ -20,6 +20,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+from engine.device import select_device
 from engine.pipeline.state import (
     StageStatus,
     load_state,
@@ -53,13 +54,15 @@ def _get_whisper_model():
     global _whisper_model
     if _whisper_model is None:
         from faster_whisper import WhisperModel
-        # device="cpu", compute_type="float32" is the safe default. Users with
-        # a CUDA-enabled torch install will get auto-detection in a future
-        # milestone; for V1 we pin to CPU for reproducibility.
+        device = select_device()
+        # On GPU we use float16 for memory headroom (large-v3 weights ~6 GB at
+        # float32 vs ~3 GB at float16). On CPU we stay at int8 to fit in
+        # system RAM alongside DF3 + Silero + Electron.
+        compute_type = "float16" if device == "cuda" else "int8"
         _whisper_model = WhisperModel(
             WHISPER_MODEL_NAME,
-            device="cpu",
-            compute_type="float32",
+            device=device,
+            compute_type=compute_type,
         )
     return _whisper_model
 

@@ -38,6 +38,12 @@ def _get_df_model():
     global _df_init
     if _df_init is None:
         from df.enhance import init_df
+        # DeepFilterNet 0.5.x does NOT accept a ``default_device`` kwarg in
+        # ``init_df()``. Device selection is handled internally via
+        # ``df.utils.get_device()``, which already calls
+        # ``torch.cuda.is_available()`` and picks ``cuda:0`` automatically when
+        # CUDA is present. No explicit device argument is needed here — DF3
+        # self-selects GPU whenever a CUDA-enabled torch is installed.
         _df_init = init_df()
     return _df_init
 
