@@ -3,18 +3,11 @@ import { apiGet } from '../../api.js';
 import { ReviewerContext } from './ReviewerContext.js';
 import TopBar from './TopBar.jsx';
 import MediaPane from './MediaPane.jsx';
-function TranscriptPanelPlaceholder({ transcript }) {
-    return (
-        <div data-testid="transcriptpanel" style={{ background: '#0d1117', borderLeft: '1px solid #21262d', overflowY: 'auto', flex: 1, padding: '8px 0' }}>
-            {transcript.segments.map(s => (
-                <div key={s.id} style={{ padding: '7px 12px', color: '#c9d1d9', fontSize: '0.83rem' }}>{s.text}</div>
-            ))}
-        </div>
-    );
-}
+import TranscriptPanel from './TranscriptPanel.jsx';
 function TimelinePlaceholder() { return <div data-testid="timeline" style={{ height: 60, background: '#0d1117', borderTop: '1px solid #21262d' }} />; }
 
 export default function ReviewerView({ folder, source, onBack, manifest }) {
+    const [searchQuery, setSearchQuery] = useState('');
     const [transcript, setTranscript] = useState(null);
     const [speechSegments, setSpeechSegments] = useState(null);
     const [error, setError] = useState(null);
@@ -91,7 +84,7 @@ export default function ReviewerView({ folder, source, onBack, manifest }) {
                         />
                         <TimelinePlaceholder />
                     </div>
-                    <TranscriptPanelPlaceholder transcript={transcript} />
+                    <TranscriptPanel transcript={transcript} searchQuery={searchQuery} />
                 </div>
             </div>
         </ReviewerContext.Provider>
