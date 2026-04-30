@@ -10,11 +10,11 @@ const SAMPLE_MANIFEST = {
     ],
 };
 
-function setupFetchStub({ initialStatus = 'idle', sequence = [] } = {}) {
+function setupFetchStub({ initialStatus = 'idle', sequence = [], openManifest = SAMPLE_MANIFEST } = {}) {
     let stateCalls = 0;
     return vi.fn((url, opts) => {
         if (url.endsWith('/api/project/open')) {
-            return Promise.resolve({ ok: true, json: () => Promise.resolve(SAMPLE_MANIFEST) });
+            return Promise.resolve({ ok: true, json: () => Promise.resolve(openManifest) });
         }
         if (url.endsWith('/api/source/process')) {
             return Promise.resolve({ ok: true, json: () => Promise.resolve({ status: 'queued' }) });
@@ -23,6 +23,12 @@ function setupFetchStub({ initialStatus = 'idle', sequence = [] } = {}) {
             const next = sequence[stateCalls] ?? sequence[sequence.length - 1] ?? initialStatus;
             stateCalls += 1;
             return Promise.resolve({ ok: true, json: () => Promise.resolve({ status: next }) });
+        }
+        if (url.endsWith('/api/project/reviewer-state')) {
+            return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+        }
+        if (url.includes('/api/source/transcript')) {
+            return Promise.resolve({ ok: true, json: () => Promise.resolve({ transcript: { schema_version: '1.0', source: {}, speakers: [], segments: [] }, speech_segments: [] }) });
         }
         return Promise.reject(new Error('unexpected url: ' + url));
     });
@@ -74,6 +80,60 @@ describe('EditorApp', () => {
                 }),
             );
         });
+    });
+
+    it('routes to reviewer view when selecting a source with completed status', async () => {
+        const completedManifest = {
+            folder: 'C:/case-folder',
+            files: [
+                { basename: 'officer.mp4', path: 'C:/case-folder/officer.mp4', extension: 'mp4', mode: 'bwc', size_bytes: 1024, completed: true },
+            ],
+        };
+        global.fetch = setupFetchStub({ openManifest: completedManifest });
+        render(<EditorApp />);
+
+        // Open folder → lands on project view
+        fireEvent.click(screen.getByRole('button', { name: /open folder/i }));
+        await waitFor(() => expect(screen.getByText('officer.mp4')).toBeDefined());
+
+        // Click completed source → should route to reviewer
+        fireEvent.click(screen.getByText('officer.mp4'));
+        await waitFor(() => expect(screen.getByTestId('topbar')).toBeDefined());
+
+        // Back button returns to project view
+        fireEvent.click(screen.getByRole('button', { name: /project/i }));
+        await waitFor(() => expect(screen.getByText('officer.mp4')).toBeDefined());
+    });
+
+    it('routes to reviewer view on first click when process returns completed (no-op path)', async () => {
+        // File is NOT pre-marked completed in the manifest — simulates a fresh session
+        // where the pipeline already ran on disk but the in-memory cache is empty.
+        const uncachedManifest = {
+            folder: 'C:/case-folder',
+            files: [
+                { basename: 'officer.mp4', path: 'C:/case-folder/officer.mp4', extension: 'mp4', mode: 'bwc', size_bytes: 1024 },
+            ],
+        };
+        // /api/source/process immediately reports completed (no-op submit).
+        global.fetch = setupFetchStub({ openManifest: uncachedManifest, initialStatus: 'completed' });
+        // Override the process stub to return completed instead of the default queued.
+        const baseFetch = global.fetch;
+        global.fetch = vi.fn((url, opts) => {
+            if (url.endsWith('/api/source/process')) {
+                return Promise.resolve({ ok: true, json: () => Promise.resolve({ status: 'completed' }) });
+            }
+            return baseFetch(url, opts);
+        });
+
+        render(<EditorApp />);
+
+        // Open folder → lands on project view
+        fireEvent.click(screen.getByRole('button', { name: /open folder/i }));
+        await waitFor(() => expect(screen.getByText('officer.mp4')).toBeDefined());
+
+        // First (and only) click on source → should route directly to reviewer
+        fireEvent.click(screen.getByText('officer.mp4'));
+        await waitFor(() => expect(screen.getByTestId('topbar')).toBeDefined());
     });
 
     it('polls source state across stages and updates UI to completed', async () => {

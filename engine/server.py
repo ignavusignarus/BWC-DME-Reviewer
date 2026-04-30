@@ -5,18 +5,131 @@ POST requests to small route tables. Each handler returns a tuple
 (status_code, body_dict). Future milestones extend the route tables.
 """
 
+import errno
 import json
 import logging
+import mimetypes
+import re
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from typing import Callable
 from urllib.parse import parse_qs, urlsplit
 
 from engine.pipeline.runner import PipelineRunner
-from engine.project import open_project
+from engine.project import (
+    AUDIO_EXTENSIONS_DOTTED,
+    VIDEO_EXTENSIONS_DOTTED,
+    open_project,
+)
 from engine.version import get_version
 
 logger = logging.getLogger("bwc-clipper.server")
+
+# ── Range-aware media streaming helpers ──────────────────────────────────
+
+_RANGE_RE = re.compile(r"bytes=(\d+)-(\d*)")
+_CHUNK_SIZE = 65536
+
+
+def _parse_range_header(header_value: str | None, file_size: int) -> tuple[int, int] | None:
+    """Parse a single-range Range header value.
+
+    Returns (start, end_inclusive) clamped to file bounds, or None if the
+    header is malformed, missing, or unsatisfiable (start past EOF).
+    """
+    if not header_value:
+        return None
+    match = _RANGE_RE.fullmatch(header_value.strip())
+    if not match:
+        return None
+    start = int(match.group(1))
+    end_str = match.group(2)
+    end = int(end_str) if end_str else file_size - 1
+    if start >= file_size:
+        return None
+    end = min(end, file_size - 1)
+    if end < start:
+        return None
+    return start, end
+
+
+def _serve_media_to(writer, media_file: Path, fallback_mime: str) -> None:
+    """Stream a media file with HTTP Range support.
+
+    `writer` provides:
+      - get_range_header() -> str | None
+      - send_response(int)
+      - send_header(str, str)
+      - end_headers()
+      - wfile (file-like with .write(bytes))
+
+    Designed to be called from BWCRequestHandler._serve_media (which
+    forwards self.headers / self.wfile / self.send_response). Tests
+    use a FakeWriter that captures the same surface.
+
+    Catches BrokenPipeError / ConnectionResetError / ConnectionAbortedError
+    plus Windows OSError errnos 10053/10054 silently — they fire constantly
+    during normal seek and the renderer is unaffected.
+    """
+    try:
+        file_size = media_file.stat().st_size
+    except OSError:
+        writer.send_response(404)
+        writer.end_headers()
+        return
+
+    content_type = mimetypes.guess_type(str(media_file))[0] or fallback_mime
+
+    range_header = writer.get_range_header()
+    parsed = _parse_range_header(range_header, file_size) if range_header else None
+
+    if range_header and parsed is None:
+        # Range header was present but unsatisfiable / malformed — RFC 7233 says 416.
+        writer.send_response(416)
+        writer.send_header("Content-Range", f"bytes */{file_size}")
+        writer.send_header("Content-Length", "0")
+        writer.end_headers()
+        return
+
+    try:
+        if parsed:
+            start, end = parsed
+            length = end - start + 1
+            writer.send_response(206)
+            writer.send_header("Content-Type", content_type)
+            writer.send_header("Content-Length", str(length))
+            writer.send_header("Content-Range", f"bytes {start}-{end}/{file_size}")
+            writer.send_header("Accept-Ranges", "bytes")
+            writer.send_header("Connection", "close")
+            writer.end_headers()
+            with open(media_file, "rb") as f:
+                f.seek(start)
+                remaining = length
+                while remaining > 0:
+                    chunk = f.read(min(_CHUNK_SIZE, remaining))
+                    if not chunk:
+                        break
+                    writer.wfile.write(chunk)
+                    remaining -= len(chunk)
+        else:
+            writer.send_response(200)
+            writer.send_header("Content-Type", content_type)
+            writer.send_header("Content-Length", str(file_size))
+            writer.send_header("Accept-Ranges", "bytes")
+            writer.send_header("Connection", "close")
+            writer.end_headers()
+            with open(media_file, "rb") as f:
+                while True:
+                    chunk = f.read(_CHUNK_SIZE)
+                    if not chunk:
+                        break
+                    writer.wfile.write(chunk)
+    except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+        return  # client disconnected — normal during seek
+    except OSError as exc:
+        if exc.errno in (errno.ECONNABORTED, errno.ECONNRESET, 10053, 10054):
+            return
+        raise
 
 
 # Module-level singleton runner shared across all request handler instances
@@ -56,6 +169,9 @@ class BWCRequestHandler(BaseHTTPRequestHandler):
         return {
             "/api/project/open": self._handle_project_open,
             "/api/source/process": self._handle_source_process,
+            "/api/source/context": self._handle_source_context,
+            "/api/source/retranscribe": self._handle_source_retranscribe,
+            "/api/project/reviewer-state": self._handle_reviewer_state_post,
         }
 
     def do_GET(self):
@@ -79,6 +195,33 @@ class BWCRequestHandler(BaseHTTPRequestHandler):
             except Exception as exc:  # pragma: no cover
                 logger.exception("/api/source/state crashed")
                 self._send_json(500, {"error": "internal", "detail": str(exc)})
+            return
+
+        if split.path == "/api/source/audio":
+            self._handle_media_route(parse_qs(split.query), kind="audio")
+            return
+        if split.path == "/api/source/video":
+            self._handle_media_route(parse_qs(split.query), kind="video")
+            return
+
+        if split.path == "/api/source/transcript":
+            try:
+                status, body = self._handle_transcript(parse_qs(split.query))
+            except Exception as exc:
+                logger.exception("/api/source/transcript crashed")
+                self._send_json(500, {"error": "internal", "detail": str(exc)})
+                return
+            self._send_json(status, body)
+            return
+
+        if split.path == "/api/project/reviewer-state":
+            try:
+                status, body = self._handle_reviewer_state_get(parse_qs(split.query))
+            except Exception as exc:
+                logger.exception("/api/project/reviewer-state crashed")
+                self._send_json(500, {"error": "internal", "detail": str(exc)})
+                return
+            self._send_json(status, body)
             return
 
         self._send_json(404, {"error": "not found", "path": split.path})
@@ -159,6 +302,57 @@ class BWCRequestHandler(BaseHTTPRequestHandler):
         status = runner.get_status(Path(folder), Path(source))
         return 200, {"status": status}
 
+    def _handle_source_context(self, body: dict) -> tuple[int, dict]:
+        from engine.source import source_cache_dir
+
+        folder = body.get("folder")
+        source = body.get("source")
+        names = body.get("names")
+        locations = body.get("locations")
+        if not isinstance(folder, str) or not folder:
+            return 400, {"error": "missing 'folder'"}
+        if not isinstance(source, str) or not source:
+            return 400, {"error": "missing 'source'"}
+        if not isinstance(names, list) or not all(isinstance(n, str) for n in names):
+            return 400, {"error": "'names' must be a list of strings"}
+        if not isinstance(locations, list) or not all(isinstance(loc, str) for loc in locations):
+            return 400, {"error": "'locations' must be a list of strings"}
+
+        folder_p = Path(folder).resolve()
+        source_p = Path(source).resolve()
+        try:
+            source_p.relative_to(folder_p)
+        except ValueError:
+            return 400, {"error": "source is not inside folder"}
+
+        cache_dir = source_cache_dir(folder_p, source_p)
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        (cache_dir / "context.json").write_text(
+            json.dumps({"names": names, "locations": locations}, indent=2),
+            encoding="utf-8",
+        )
+        return 200, {"ok": True}
+
+    def _handle_source_retranscribe(self, body: dict) -> tuple[int, dict]:
+        folder = body.get("folder")
+        source = body.get("source")
+        if not isinstance(folder, str) or not folder:
+            return 400, {"error": "missing 'folder'"}
+        if not isinstance(source, str) or not source:
+            return 400, {"error": "missing 'source'"}
+
+        folder_p = Path(folder).resolve()
+        source_p = Path(source).resolve()
+        try:
+            source_p.relative_to(folder_p)
+        except ValueError:
+            return 400, {"error": "source is not inside folder"}
+
+        runner = get_pipeline_runner()
+        runner.rerun_from_stage("transcribe", folder_p, source_p)
+        status = runner.get_status(folder_p, source_p)
+        return 200, {"status": status}
+
     def _handle_source_state(self, query: dict) -> tuple[int, dict]:
         folder_list = query.get("folder", [])
         source_list = query.get("source", [])
@@ -169,6 +363,91 @@ class BWCRequestHandler(BaseHTTPRequestHandler):
         )
         return 200, {"status": status}
 
+    def _handle_transcript(self, query: dict) -> tuple[int, dict]:
+        from engine.source import source_cache_dir
+
+        folder_list = query.get("folder", [])
+        source_list = query.get("source", [])
+        if not folder_list or not source_list:
+            return 400, {"error": "missing 'folder' or 'source'"}
+        folder = Path(folder_list[0]).resolve()
+        source = Path(source_list[0]).resolve()
+
+        # Defense in depth: source must be inside the project folder.
+        try:
+            source.relative_to(folder)
+        except ValueError:
+            return 400, {"error": "source is not inside folder"}
+
+        cache_dir = source_cache_dir(folder, source)
+        transcript_path = cache_dir / "transcript.json"
+        speech_segments_path = cache_dir / "speech-segments.json"
+        if not transcript_path.is_file() or not speech_segments_path.is_file():
+            return 404, {"error": "transcript or speech-segments missing"}
+        transcript = json.loads(transcript_path.read_text(encoding="utf-8"))
+        speech_segments_doc = json.loads(speech_segments_path.read_text(encoding="utf-8"))
+        tracks = speech_segments_doc.get("tracks", [])
+        return 200, {
+            "transcript": transcript,
+            "speech_segments": tracks[0] if tracks else [],
+        }
+
+    def _handle_reviewer_state_get(self, query: dict) -> tuple[int, dict]:
+        from engine.reviewer_state import load_reviewer_state
+        folder_list = query.get("folder", [])
+        if not folder_list:
+            return 400, {"error": "missing 'folder'"}
+        return 200, load_reviewer_state(Path(folder_list[0]))
+
+    def _handle_reviewer_state_post(self, body: dict) -> tuple[int, dict]:
+        from engine.reviewer_state import save_reviewer_state
+        folder = body.get("folder")
+        last_source = body.get("last_source")
+        if not isinstance(folder, str) or not folder:
+            return 400, {"error": "missing 'folder'"}
+        if last_source is not None and not isinstance(last_source, str):
+            return 400, {"error": "'last_source' must be a string or null"}
+        save_reviewer_state(Path(folder), {"last_source": last_source})
+        return 200, {"ok": True}
+
+    def _handle_media_route(self, query: dict, kind: str) -> None:
+        folder_list = query.get("folder", [])
+        source_list = query.get("source", [])
+        if not folder_list or not source_list:
+            self._send_json(400, {"error": "missing 'folder' or 'source' query parameter"})
+            return
+        folder = Path(folder_list[0]).resolve()
+        source = Path(source_list[0]).resolve()
+
+        # Defense in depth: source must be inside the project folder.
+        try:
+            source.relative_to(folder)
+        except ValueError:
+            self._send_json(400, {"error": "source is not inside folder"})
+            return
+
+        if not source.is_file():
+            self._send_json(404, {"error": "source not found", "path": str(source)})
+            return
+
+        ext = source.suffix.lower()
+        if kind == "audio":
+            if ext in VIDEO_EXTENSIONS_DOTTED:
+                self._send_json(415, {"error": "source is video; use /api/source/video"})
+                return
+            if ext not in AUDIO_EXTENSIONS_DOTTED:
+                self._send_json(415, {"error": "unsupported audio extension", "ext": ext})
+                return
+            self._serve_media(source, fallback_mime="audio/wav")
+        else:  # kind == "video"
+            if ext in AUDIO_EXTENSIONS_DOTTED:
+                self._send_json(415, {"error": "source is audio; use /api/source/audio"})
+                return
+            if ext not in VIDEO_EXTENSIONS_DOTTED:
+                self._send_json(415, {"error": "unsupported video extension", "ext": ext})
+                return
+            self._serve_media(source, fallback_mime="video/mp4")
+
     # ── Response helper ──
 
     def _send_json(self, status: int, body: dict):
@@ -177,5 +456,39 @@ class BWCRequestHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(payload)))
         self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Range")
         self.end_headers()
         self.wfile.write(payload)
+
+    def _serve_media(self, file_path: Path, fallback_mime: str) -> None:
+        """Stream a media file from disk with Range support and CORS headers."""
+
+        handler = self  # capture for the writer adapter
+
+        class _HandlerWriter:
+            def get_range_header(self):
+                return handler.headers.get("Range")
+
+            def send_response(self, status):
+                handler.send_response(status)
+
+            def send_header(self, key, value):
+                handler.send_header(key, value)
+                # Add CORS expose headers alongside each media response
+                if key == "Content-Type" and not getattr(self, "_cors_added", False):
+                    handler.send_header("Access-Control-Allow-Origin", "*")
+                    handler.send_header(
+                        "Access-Control-Expose-Headers",
+                        "Content-Range, Accept-Ranges, Content-Length",
+                    )
+                    self._cors_added = True
+
+            def end_headers(self):
+                handler.end_headers()
+
+            @property
+            def wfile(self):
+                return handler.wfile
+
+        _serve_media_to(_HandlerWriter(), file_path, fallback_mime)
