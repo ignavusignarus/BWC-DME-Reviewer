@@ -12,9 +12,9 @@ The defining UX problem this app solves: a 30-minute BWC where the relevant inci
 
 ---
 
-## State (as of merge `afcc946` on main)
+## State (as of M6 implementation complete on `milestone-6-reviewer-ui` branch — pending burn-in + merge)
 
-**6 of an 8-milestone plan complete — engine pipeline is fully working end-to-end.**
+**7 of an 8-milestone plan implemented — first user-facing review experience is ready for manual burn-in.**
 
 | M | Title | Merge | What it shipped |
 |---|---|---|---|
@@ -24,14 +24,14 @@ The defining UX problem this app solves: a 30-minute BWC where the relevant inci
 | M3 | Stage 2 + chaining | `4a298ca` | Loudness normalize + dynamic-range compress; pipeline chaining infrastructure (`_PIPELINE_STAGES`); stage-aware status strings |
 | M4 | Stage 3 + 4 | `4bbc057` | DeepFilterNet 3 enhancement + Silero VAD; `speech-segments.json` artifact; first ML deps |
 | M5 | Stage 5 + 6 | `afcc946` | faster-whisper transcribe (with VAD-filter) + WhisperX wav2vec2 word alignment; `transcript.json` per brief §4.8 schema; **real-model integration test harness** |
+| M6 | Reviewer UI surfaces | _pending merge_ (branch `milestone-6-reviewer-ui`) | ThreadedHTTPServer + HTTP Range streaming; `/api/source/{audio,video,transcript,context,retranscribe}` + `/api/project/reviewer-state`; React reviewer view (TopBar / MediaPane / Waveform / Transport / TranscriptPanel / ContextNamesPanel / Timeline collapsed+uncompressed); search with Enter cycling; context-name re-transcribe lifecycle with stale banner; window-level hotkeys (Space, J/K/L, ←/→, Shift+←/→, /, Ctrl+S, Esc) |
 
-**Verified:** Full pipeline runs on a real 60-minute DME exam in ~5 minutes on an RTX 5080. Output `transcript.json` has 1,225 word-aligned segments, zero hallucination patterns, 45% silence skipped via VAD filter.
+**Verified:** Full pipeline runs on a real 60-minute DME exam in ~5 minutes on an RTX 5080. M6 unit suite at 230 tests (149 engine + 81 editor), all green.
 
-**Remaining (~3 milestones, plus the deliberately-deferred items):**
+**Remaining (~2 milestones, plus the deliberately-deferred items):**
 
 | M | Title | Scope (rough) |
 |---|---|---|
-| M6 | Reviewer UI surfaces | Engine endpoint to serve cached audio over loopback; transcript panel rendering from `transcript.json`; audio player; click-to-seek; context-names edit panel; collapsed-silence timeline (V1 of it) |
 | M7 | Stages 7-8 + dep gate | pyannote 3.1 diarization + wearer-detection heuristic; populate `transcript.json.speakers`; full dependency-gate splash screen replacing the M2 implicit gate |
 | M8 | Packaging | NSIS per-user installer; installer-time model downloads (~3 GB total); release artifact pipeline |
 
