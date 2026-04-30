@@ -12,9 +12,9 @@ The defining UX problem this app solves: a 30-minute BWC where the relevant inci
 
 ---
 
-## State (as of M6 implementation complete on `milestone-6-reviewer-ui` branch — pending burn-in + merge)
+## State (as of merge `dd71bb4` on main — M6 merged, manual burn-in pending)
 
-**7 of an 8-milestone plan implemented — first user-facing review experience is ready for manual burn-in.**
+**7 of an 8-milestone plan complete — first user-facing review experience shipped; user is doing manual burn-in next session.**
 
 | M | Title | Merge | What it shipped |
 |---|---|---|---|
@@ -24,9 +24,9 @@ The defining UX problem this app solves: a 30-minute BWC where the relevant inci
 | M3 | Stage 2 + chaining | `4a298ca` | Loudness normalize + dynamic-range compress; pipeline chaining infrastructure (`_PIPELINE_STAGES`); stage-aware status strings |
 | M4 | Stage 3 + 4 | `4bbc057` | DeepFilterNet 3 enhancement + Silero VAD; `speech-segments.json` artifact; first ML deps |
 | M5 | Stage 5 + 6 | `afcc946` | faster-whisper transcribe (with VAD-filter) + WhisperX wav2vec2 word alignment; `transcript.json` per brief §4.8 schema; **real-model integration test harness** |
-| M6 | Reviewer UI surfaces | _pending merge_ (branch `milestone-6-reviewer-ui`) | ThreadedHTTPServer + HTTP Range streaming; `/api/source/{audio,video,transcript,context,retranscribe}` + `/api/project/reviewer-state`; React reviewer view (TopBar / MediaPane / Waveform / Transport / TranscriptPanel / ContextNamesPanel / Timeline collapsed+uncompressed); search with Enter cycling; context-name re-transcribe lifecycle with stale banner; window-level hotkeys (Space, J/K/L, ←/→, Shift+←/→, /, Ctrl+S, Esc) |
+| M6 | Reviewer UI surfaces | `dd71bb4` | ThreadedHTTPServer + HTTP Range streaming; `/api/source/{audio,video,transcript,context,retranscribe}` + `/api/project/reviewer-state`; React reviewer view (TopBar / MediaPane / Waveform / Transport / TranscriptPanel / ContextNamesPanel / Timeline collapsed+uncompressed); search with Enter cycling; context-name re-transcribe lifecycle with stale banner; window-level hotkeys (Space, J/K/L, ←/→, Shift+←/→, /, Ctrl+S, Esc); spec at `docs/superpowers/specs/2026-04-29-bwc-clipper-milestone-6-reviewer-ui-design.md` |
 
-**Verified:** Full pipeline runs on a real 60-minute DME exam in ~5 minutes on an RTX 5080. M6 unit suite at 230 tests (149 engine + 81 editor), all green.
+**Verified:** Full pipeline runs on a real 60-minute DME exam in ~5 minutes on an RTX 5080. M6 test suite at **230 tests** (149 engine + 81 editor), all green at merge time. **Manual burn-in is the next step** — not yet done.
 
 **Remaining (~2 milestones, plus the deliberately-deferred items):**
 
@@ -49,14 +49,16 @@ bwc-clipper/
 │   ├── HANDOFF.md                    YOU ARE HERE
 │   ├── superpowers/
 │   │   ├── specs/
-│   │   │   └── 2026-04-29-bwc-clipper-design.md       Source of truth for design
+│   │   │   ├── 2026-04-29-bwc-clipper-design.md                    Source of truth for design (whole project)
+│   │   │   └── 2026-04-29-bwc-clipper-milestone-6-reviewer-ui-design.md   M6 design (post-brainstorm)
 │   │   └── plans/                    One file per milestone
 │   │       ├── 2026-04-29-bwc-clipper-milestone-0-skeleton.md
 │   │       ├── 2026-04-29-bwc-clipper-milestone-1-folder-open.md
 │   │       ├── 2026-04-29-bwc-clipper-milestone-2-ffmpeg-extract.md
 │   │       ├── 2026-04-29-bwc-clipper-milestone-3-normalize-chain.md
 │   │       ├── 2026-04-29-bwc-clipper-milestone-4-enhance-vad.md
-│   │       └── 2026-04-29-bwc-clipper-milestone-5-transcribe-align.md
+│   │       ├── 2026-04-29-bwc-clipper-milestone-5-transcribe-align.md
+│   │       └── 2026-04-29-bwc-clipper-milestone-6-reviewer-ui.md
 ├── bodycam_transcription_brief.md    Engineering brief — pipeline parameters by §
 ├── engine/                           Python — pipeline + HTTP server
 │   ├── server.py                     stdlib http.server with route table
@@ -260,6 +262,51 @@ These are recorded in `memory/feedback_*` files; summary here:
 - **Test flake on Windows:** `tests/test_server_source.py::test_unknown_post_path_returns_404` rarely flakes because the engine sends 404 before reading the request body, causing a TCP connection-reset on Windows. Not blocking; documented in `memory/feedback_bwc_test_flake.md`.
 - **Some align segments fall back to original timestamps:** WhisperX's wav2vec2 backtrack fails on a few segments per file (typically <5%). The fallback behavior preserves the segment-level timestamps but doesn't have word-level. Acceptable for V1; could investigate in M7+ if downstream features need word-level on every segment.
 - **VAD parameter tuning for DME:** Brief §4.4 parameters were chosen for BWC. On the Heather Williams ENT exam they detected 1,225 segments with 45% silence skipped, which is reasonable, but could be tuned. Worth burn-in testing across multiple sources before fixing.
+
+### M6 follow-ups surfaced during code review (none blocking burn-in)
+
+These came out of the SDD code-review loops on M6 tasks. Address in a small polish pass after burn-in confirms the rest works, or fold into M7 prep.
+
+1. **Waveform `AudioContext` is never closed** (`editor/components/reviewer/Waveform.jsx`). Each audio source decode constructs a fresh `AudioContext` but never `close()`s it. Browser caps concurrent contexts at ~6, so after enough cross-source switching the user hits "number of hardware contexts reached the maximum." Fix: wrap the decode in `try { ... } finally { ctx.close().catch(() => {}); }`. Also no resize handler — splitter / window resize blurs the canvas. And on decode failure, the loading overlay disappears but no error is shown. Three small fixes; ~15 min of work.
+2. **Cross-source navigation mid-rerun**: `retranscribeStatus` lives at component level. If user starts a re-run on Source A then switches to Source B before completion, B briefly shows the stale banner from A. The `key={source.path}` remount on `<ReviewerView>` resets cleanly on switch, but the in-flight runner job is orphaned. Acceptable for V1; M7+ could lift retranscribeStatus to a per-source `Map` or use a dedicated runner-state endpoint keyed by source.
+3. **Pre-existing path-containment gap on `/api/source/process`** (M2-era). M6 added `source.relative_to(folder)` defense-in-depth on `/api/source/{audio,video,transcript,context,retranscribe}`, but the older `/api/source/process` POST still accepts any source path. Loopback-only mitigates blast radius, but worth retrofitting for consistency.
+4. **`/` hotkey uses `querySelector('input[placeholder*="Search" i]')`** — fragile if a second placeholder-containing-"Search" input ever appears. Migrate to a ref via `ReviewerContext` or a stable `data-hotkey="search"` attribute when M7 adds new inputs.
+5. **`fmtTs` doesn't render hours.** `editor/components/reviewer/TranscriptPanel.jsx` and `Timeline.jsx` both format as `mm:ss`. For >60 min audio, position "1:02:34" displays as "02:34". Cosmetic but misleading.
+6. **Esc only blurs `INPUT`, not `TEXTAREA`** in the hotkey handler. ContextNamesPanel uses `<textarea>` for names; Esc inside it can't blur out. One-line tag-list expansion.
+7. **`activeMatchIndex` reset already lands** (commit `6c11d35`) — this was caught and fixed during Task 20. No further action.
+
+---
+
+## For tomorrow's burn-in session
+
+The user will run manual burn-in next session. State to inherit:
+
+- All 230 tests green at merge `dd71bb4`. Engine + editor both clean.
+- Editor bundle was rebuilt at merge time (`npm run build:editor`).
+- `Samples/BWC/pia00458_…mp4` (~91 min, ~1.07 GB) is the recommended first BWC end-to-end target. Stage 1 (extract) is already cached; the runner will resume from Stage 2 on first selection. Expected wall-clock to complete: ~5 min on the 5080.
+- `Samples/BWC/tja00453_…mp4` (3.95 GB) is the Range-correctness stress fixture for the integration test (`tests/integration/test_reviewer_endpoints.py`). It runs only with `BWC_CLIPPER_FFMPEG_DIR` set.
+
+**Manual burn-in checklist** (per spec §10.4):
+
+```bash
+cd "C:/Claude Code Projects/BWC Reviewer"
+npm start
+```
+
+1. Open the Williams ENT DME folder → reviewer view loads, audio plays, transcript renders, timeline shows speech segments.
+2. Click any transcript utterance — audio jumps there.
+3. Type a known phrase (e.g., "medication") — `<mark>` highlights in transcript + gold dots on timeline. Press Enter / Shift+Enter to cycle matches.
+4. Edit context names, click "Apply & re-transcribe" — amber banner appears, ~30s for re-run, transcript refreshes. (Sad path: kill the engine mid-run to verify the failure banner + Dismiss button work.)
+5. Open `Samples/BWC/`, select `pia00458_…mp4`. Watch progress through Stages 2-6 (~5 min), then video plays + scrubbing works + click-to-seek lands within ~50 ms of the click target.
+6. Toggle ⇄ between collapsed and uncompressed timeline views.
+
+**If burn-in surfaces issues:**
+- Each is a minor follow-up unless it's a hard regression. File a quick `fix(...)` commit on a fresh `m6-burnin-fix` branch (or directly on main if trivial).
+- The follow-ups list above is the queue of known polish items to triage against burn-in findings.
+
+**If burn-in is clean:**
+- Push main to origin if not already pushed.
+- Begin M7 prep. The spec calls for pyannote 3.1 diarization + wearer detection + a dependency-gate splash. The runner's `_PIPELINE_STAGES` list is the extension point — adding diarize/wearer-detect after `align` makes `rerun_from_stage("transcribe", ...)` automatically invalidate them, per the M6 spec's forward-compat note.
 
 ---
 
