@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { apiGet } from '../../api.js';
 import { ReviewerContext } from './ReviewerContext.js';
 import TopBar from './TopBar.jsx';
-function MediaPanePlaceholder() { return <div data-testid="mediapane" style={{ flex: 1, background: '#010409' }} />; }
+import MediaPane from './MediaPane.jsx';
 function TranscriptPanelPlaceholder({ transcript }) {
     return (
         <div data-testid="transcriptpanel" style={{ background: '#0d1117', borderLeft: '1px solid #21262d', overflowY: 'auto', flex: 1, padding: '8px 0' }}>
@@ -63,6 +63,11 @@ export default function ReviewerView({ folder, source, onBack, manifest }) {
         folder, source,
     }), [currentTime, duration, playing, seekTo, play, pause, folder, source]);
 
+    const onTimeUpdate = (e) => setCurrentTime(e.currentTarget.currentTime);
+    const onLoadedMetadata = (e) => setDuration(e.currentTarget.duration);
+    const onPlay = () => setPlaying(true);
+    const onPause = () => setPlaying(false);
+
     if (error) return <div style={{ padding: 24, color: '#f87171' }}>{error}</div>;
     if (!transcript) return <div style={{ padding: 24, color: '#8b949e' }}>Loading transcript…</div>;
 
@@ -73,25 +78,21 @@ export default function ReviewerView({ folder, source, onBack, manifest }) {
                     manifest={manifest}
                     source={source}
                     onBack={onBack}
-                    onSelectSource={(f) => { /* cross-source nav stub — Task 21 wires this */ }}
+                    onSelectSource={(f) => { /* TODO(task-21): cross-source nav */ }}
                     retranscribeStatus={null}
                 />
                 <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 360px', minHeight: 0 }}>
                     <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-                        <MediaPanePlaceholder />
+                        <MediaPane
+                            onTimeUpdate={onTimeUpdate}
+                            onLoadedMetadata={onLoadedMetadata}
+                            onPlay={onPlay}
+                            onPause={onPause}
+                        />
                         <TimelinePlaceholder />
                     </div>
                     <TranscriptPanelPlaceholder transcript={transcript} />
                 </div>
-                <audio
-                    ref={audioRef}
-                    src={`/api/source/audio?${new URLSearchParams({ folder, source: source.path }).toString()}`}
-                    onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
-                    onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
-                    onPlay={() => setPlaying(true)}
-                    onPause={() => setPlaying(false)}
-                    style={{ display: 'none' }}
-                />
             </div>
         </ReviewerContext.Provider>
     );
