@@ -1,16 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { apiGet } from '../../api.js';
 import { ReviewerContext } from './ReviewerContext.js';
-
-// Placeholders — replaced by real components in subsequent tasks
-function TopBarPlaceholder({ onBack, source }) {
-    return (
-        <div data-testid="topbar" style={{ padding: '8px 14px', background: '#161b22', borderBottom: '1px solid #21262d', display: 'flex', alignItems: 'center', gap: 14 }}>
-            <button onClick={onBack} style={{ background: 'transparent', color: '#8b949e', border: '1px solid #30363d', borderRadius: 3, padding: '3px 9px' }}>← Project</button>
-            <span style={{ fontFamily: 'ui-monospace, monospace', color: '#6e7681', fontSize: '0.78rem' }}>{source.path}</span>
-        </div>
-    );
-}
+import TopBar from './TopBar.jsx';
 function MediaPanePlaceholder() { return <div data-testid="mediapane" style={{ flex: 1, background: '#010409' }} />; }
 function TranscriptPanelPlaceholder({ transcript }) {
     return (
@@ -78,7 +69,13 @@ export default function ReviewerView({ folder, source, onBack, manifest }) {
     return (
         <ReviewerContext.Provider value={ctx}>
             <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
-                <TopBarPlaceholder onBack={onBack} source={source} />
+                <TopBar
+                    manifest={manifest}
+                    source={source}
+                    onBack={onBack}
+                    onSelectSource={(f) => { /* cross-source nav stub — Task 21 wires this */ }}
+                    retranscribeStatus={null}
+                />
                 <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 360px', minHeight: 0 }}>
                     <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
                         <MediaPanePlaceholder />
