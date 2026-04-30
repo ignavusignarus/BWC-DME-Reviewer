@@ -4,6 +4,8 @@ import { ReviewerContext } from './ReviewerContext.js';
 import TopBar from './TopBar.jsx';
 import MediaPane from './MediaPane.jsx';
 import TranscriptPanel from './TranscriptPanel.jsx';
+import ContextNamesPanel from './ContextNamesPanel.jsx';
+import { usePolling } from '../../usePolling.js';
 function TimelinePlaceholder() { return <div data-testid="timeline" style={{ height: 60, background: '#0d1117', borderTop: '1px solid #21262d' }} />; }
 
 export default function ReviewerView({ folder, source, onBack, manifest }) {
@@ -15,6 +17,8 @@ export default function ReviewerView({ folder, source, onBack, manifest }) {
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
     const [playing, setPlaying] = useState(false);
+    const [retranscribeStatus, setRetranscribeStatus] = useState(null);
+    const [staleTranscript, setStaleTranscript] = useState(false);
 
     useEffect(() => {
         let cancelled = false;
@@ -41,6 +45,32 @@ export default function ReviewerView({ folder, source, onBack, manifest }) {
 
         return () => { cancelled = true; };
     }, [folder, source.path]);
+
+    const fetchStatus = useCallback(async () => {
+        const params = new URLSearchParams({ folder, source: source.path });
+        const resp = await apiGet(`/api/source/state?${params.toString()}`);
+        return resp.status === 'idle' ? null : resp.status;
+    }, [folder, source.path]);
+
+    const polling = usePolling(fetchStatus, retranscribeStatus !== null);
+
+    useEffect(() => {
+        if (polling.status) setRetranscribeStatus(polling.status);
+        if (polling.status === 'completed') {
+            const params = new URLSearchParams({ folder, source: source.path });
+            apiGet(`/api/source/transcript?${params.toString()}`).then((doc) => {
+                setTranscript(doc.transcript);
+                setSpeechSegments(doc.speech_segments);
+                setStaleTranscript(false);
+                setRetranscribeStatus(null);
+            });
+        }
+    }, [polling.status, folder, source.path]);
+
+    const onRetranscribeStarted = () => {
+        setStaleTranscript(true);
+        setRetranscribeStatus('queued');
+    };
 
     const seekTo = useCallback((seconds) => {
         if (!audioRef.current) return;
@@ -72,7 +102,7 @@ export default function ReviewerView({ folder, source, onBack, manifest }) {
                     source={source}
                     onBack={onBack}
                     onSelectSource={(f) => { /* TODO(task-21): cross-source nav */ }}
-                    retranscribeStatus={null}
+                    retranscribeStatus={retranscribeStatus}
                 />
                 <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 360px', minHeight: 0 }}>
                     <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
@@ -84,7 +114,20 @@ export default function ReviewerView({ folder, source, onBack, manifest }) {
                         />
                         <TimelinePlaceholder />
                     </div>
-                    <TranscriptPanel transcript={transcript} searchQuery={searchQuery} />
+                    <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, borderLeft: '1px solid #21262d' }}>
+                        {staleTranscript && (
+                            <div style={{ background: '#161b22', borderBottom: '1px solid #d29922', color: '#d29922', padding: '6px 12px', fontSize: '0.78rem' }}>
+                                Re-transcribing — showing previous results
+                            </div>
+                        )}
+                        <TranscriptPanel transcript={transcript} searchQuery={searchQuery} />
+                        <ContextNamesPanel
+                            folder={folder}
+                            sourcePath={source.path}
+                            onRetranscribeStarted={onRetranscribeStarted}
+                            disabled={retranscribeStatus !== null}
+                        />
+                    </div>
                 </div>
             </div>
         </ReviewerContext.Provider>
