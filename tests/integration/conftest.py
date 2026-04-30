@@ -20,6 +20,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 FIXTURE_PATH = REPO_ROOT / "tests" / "fixtures" / "integration" / "sample_short.wav"
+LONG_FIXTURE_PATH = REPO_ROOT / "tests" / "fixtures" / "integration" / "sample_long.wav"
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -45,3 +46,22 @@ def sample_short_wav() -> Path:
             f"See tests/integration/conftest.py for regeneration instructions."
         )
     return FIXTURE_PATH
+
+
+@pytest.fixture(scope="session")
+def sample_long_wav() -> Path:
+    """A ~90-second fixture, longer than the enhance stage's 60-second chunk
+    size, used to exercise the chunked-processing path that handles audio too
+    long for a single cuDNN call. Regenerate via:
+
+        ffmpeg -y -ss 30 -t 90 \\
+            -i "Samples/DME Audio/<some>.MP3" \\
+            -ac 1 -ar 16000 -c:a pcm_s16le \\
+            tests/fixtures/integration/sample_long.wav
+    """
+    if not LONG_FIXTURE_PATH.is_file():
+        pytest.skip(
+            f"Long integration fixture missing: {LONG_FIXTURE_PATH}. "
+            f"See tests/integration/conftest.py for regeneration instructions."
+        )
+    return LONG_FIXTURE_PATH

@@ -48,30 +48,59 @@ def _get_df_model():
     return _df_init
 
 
+# Chunk size for DF3 enhancement (in seconds at the model's native rate).
+# Long audio (60+ minute files) passed as a single tensor triggers
+# ``CUDNN_STATUS_NOT_SUPPORTED`` errors deep inside cuDNN's RNN ops — the
+# tensor's sequence length exceeds an internal limit. 60-second chunks at
+# 48 kHz (~2.9M samples each) run cleanly on a 16 GB VRAM GPU; the
+# concatenated output is bit-identical to one-shot processing for shorter
+# audio (DF3 is a feed-forward + CRN model with a small temporal context;
+# chunk boundaries don't propagate context across, but with 60-second
+# chunks the artifact is negligible vs. the per-frame DF3 processing).
+_CHUNK_SECONDS = 60
+
+
 def enhance_audio_file(in_path: Path, out_path: Path) -> None:
     """Read a WAV, run DeepFilterNet 3 over it, write the enhanced WAV.
 
-    DF3 operates internally at 48 kHz; we use df.enhance.load_audio to
-    resample the input. After enhancement, we resample the 48 kHz output
-    back down to 16 kHz BEFORE writing — df.enhance.save_audio doesn't
-    resample, it just writes the tensor's samples at the claimed sample
-    rate, so passing sr=16000 with 48 kHz audio data produces a 3x-too-long
-    WAV.
+    DF3 operates internally at 48 kHz. Long inputs are chunked to avoid
+    cuDNN's CUDNN_STATUS_NOT_SUPPORTED error on very long sequences; each
+    chunk is processed independently and the outputs are concatenated.
+    The 48 kHz output is resampled to 16 kHz before writing so the cache
+    layout stays consistent for Stage 4 (Silero VAD wants 16 kHz) and
+    downstream stages — ``df.enhance.save_audio`` does NOT resample (it
+    just writes the tensor's samples at the claimed sample rate), so
+    passing 48 kHz audio with sr=16000 would produce a 3x-too-long WAV.
 
     Tests mock this function — the underlying df calls are not exercised
     in unit tests.
     """
+    import torch
     import torchaudio.functional as F
     from df.enhance import enhance, load_audio, save_audio
 
     model, df_state, *_ = _get_df_model()
-    # Load + resample input to the model's native rate (48 kHz for DF3).
-    audio, _in_sr = load_audio(str(in_path), sr=df_state.sr())
-    enhanced = enhance(model, df_state, audio)
-    # Resample 48 kHz → 16 kHz before saving so the cache layout stays
-    # consistent for Stage 4 (Silero VAD wants 16 kHz) and downstream
-    # stages.
-    enhanced_16k = F.resample(enhanced, df_state.sr(), 16000)
+    sr_model = df_state.sr()  # 48000 for DF3
+    audio, _in_sr = load_audio(str(in_path), sr=sr_model)
+
+    chunk_samples = _CHUNK_SECONDS * sr_model
+    total_samples = audio.shape[-1]
+
+    if total_samples <= chunk_samples:
+        # Short audio — process whole thing in one pass.
+        enhanced = enhance(model, df_state, audio)
+    else:
+        # Process in fixed-size chunks; concatenate results on CPU so VRAM
+        # doesn't accumulate across chunks.
+        out_chunks = []
+        for start in range(0, total_samples, chunk_samples):
+            end = min(start + chunk_samples, total_samples)
+            chunk = audio[..., start:end].contiguous()
+            chunk_out = enhance(model, df_state, chunk)
+            out_chunks.append(chunk_out.cpu())
+        enhanced = torch.cat(out_chunks, dim=-1)
+
+    enhanced_16k = F.resample(enhanced, sr_model, 16000)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     save_audio(str(out_path), enhanced_16k, 16000)
 

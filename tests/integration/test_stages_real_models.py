@@ -68,6 +68,37 @@ def test_real_enhance_runs_on_sample(tmp_path: Path, sample_short_wav: Path):
          f"Likely the save_audio sample-rate-mismatch bug.")
 
 
+def test_real_enhance_chunks_long_audio(tmp_path: Path, sample_long_wav: Path):
+    """Audio longer than the chunk size (60s) must process via chunking
+    without crashing cuDNN. The 90-second fixture forces ≥2 chunks; output
+    duration must match input.
+
+    Without the chunked-processing path, very long audio (60+ min) triggers
+    ``CUDNN_STATUS_NOT_SUPPORTED`` deep inside DF3's RNN call. 90 seconds is
+    short enough to be fast, long enough to exercise the chunking branch.
+    """
+    import soundfile as sf
+
+    from engine.pipeline.enhance import run_enhance_stage
+    cache_dir = _build_basic_cache(tmp_path, sample_long_wav, stage_dir="normalized")
+
+    outputs = run_enhance_stage(cache_dir)
+
+    assert len(outputs) == 1
+    out_wav = outputs[0]
+    assert out_wav.is_file()
+
+    in_info = sf.info(str(sample_long_wav))
+    out_info = sf.info(str(out_wav))
+    assert out_info.samplerate == 16000
+    duration_ratio = out_info.duration / in_info.duration
+    assert 0.99 < duration_ratio < 1.01, \
+        (f"Chunked enhance produced wrong-duration output: "
+         f"input {in_info.duration:.2f}s, output {out_info.duration:.2f}s "
+         f"(ratio={duration_ratio:.3f}). Chunk concatenation likely lost or "
+         f"duplicated samples.")
+
+
 # ── Stage 4: Silero VAD ────────────────────────────────────────────────────
 
 def test_real_vad_runs_on_sample(tmp_path: Path, sample_short_wav: Path):
