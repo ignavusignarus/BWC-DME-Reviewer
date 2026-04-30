@@ -177,3 +177,21 @@ def test_transcript_route_404_when_artifacts_missing(tmp_path: Path):
     handler = _make_handler("GET", f"/api/source/transcript?{qs}")
     handler.do_GET()
     assert _last_status(handler) == 404
+
+
+def test_transcript_route_400_when_source_outside_folder(tmp_path: Path):
+    folder = tmp_path / "case"
+    folder.mkdir()
+    other = tmp_path / "elsewhere.mp3"
+    other.write_bytes(b"x")
+
+    qs = urlencode({"folder": str(folder), "source": str(other)})
+    handler = _make_handler("GET", f"/api/source/transcript?{qs}")
+    handler.do_GET()
+    assert _last_status(handler) == 400
+
+
+def test_transcript_route_400_when_missing_query_params():
+    handler = _make_handler("GET", "/api/source/transcript")
+    handler.do_GET()
+    assert _last_status(handler) == 400

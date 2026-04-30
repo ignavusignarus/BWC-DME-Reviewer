@@ -308,6 +308,13 @@ class BWCRequestHandler(BaseHTTPRequestHandler):
             return 400, {"error": "missing 'folder' or 'source'"}
         folder = Path(folder_list[0]).resolve()
         source = Path(source_list[0]).resolve()
+
+        # Defense in depth: source must be inside the project folder.
+        try:
+            source.relative_to(folder)
+        except ValueError:
+            return 400, {"error": "source is not inside folder"}
+
         cache_dir = source_cache_dir(folder, source)
         transcript_path = cache_dir / "transcript.json"
         speech_segments_path = cache_dir / "speech-segments.json"
