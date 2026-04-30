@@ -41,10 +41,11 @@ include = ["engine*"]
 [tool.pytest.ini_options]
 minversion = "7.0"
 testpaths = ["tests"]
-addopts = "-v --tb=short"
-timeout = 30
+addopts = "-v --tb=short -m 'not integration'"
+timeout = 60
 markers = [
     "smoke: end-to-end smoke tests that start subprocesses",
+    "integration: real-model integration tests (require ML deps + tests/fixtures/integration/sample_short.wav)",
 ]
 
 [tool.ruff]
