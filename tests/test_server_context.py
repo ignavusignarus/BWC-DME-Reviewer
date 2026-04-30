@@ -6,8 +6,6 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock
 
-import pytest
-
 from engine.server import BWCRequestHandler
 
 
@@ -89,3 +87,19 @@ def test_context_post_creates_missing_cache_dir(tmp_path: Path):
     from engine.source import source_cache_dir
     cache = source_cache_dir(folder, source)
     assert (cache / "context.json").is_file()
+
+
+def test_context_post_400_when_source_outside_folder(tmp_path: Path):
+    folder = tmp_path / "case"
+    folder.mkdir()
+    other = tmp_path / "elsewhere.mp3"
+    other.write_bytes(b"x")
+
+    handler = _post_handler("/api/source/context", {
+        "folder": str(folder),
+        "source": str(other),
+        "names": [],
+        "locations": [],
+    })
+    handler.do_POST()
+    assert _last_status(handler) == 400

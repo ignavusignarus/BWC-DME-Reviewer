@@ -6,8 +6,6 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from engine.server import BWCRequestHandler
 
 
@@ -42,7 +40,7 @@ def test_retranscribe_calls_rerun_from_stage(tmp_path: Path):
     with patch("engine.server.get_pipeline_runner", return_value=fake_runner):
         handler.do_POST()
 
-    fake_runner.rerun_from_stage.assert_called_once_with("transcribe", Path(str(folder)), Path(str(source)))
+    fake_runner.rerun_from_stage.assert_called_once_with("transcribe", Path(str(folder)).resolve(), Path(str(source)).resolve())
     assert _last_status(handler) == 200
     body = json.loads(handler.wfile.getvalue())
     assert body["status"] == "queued"
@@ -50,6 +48,20 @@ def test_retranscribe_calls_rerun_from_stage(tmp_path: Path):
 
 def test_retranscribe_validates_required_fields(tmp_path: Path):
     handler = _post({"folder": "", "source": ""})
+    fake_runner = MagicMock()
+    with patch("engine.server.get_pipeline_runner", return_value=fake_runner):
+        handler.do_POST()
+    assert _last_status(handler) == 400
+    fake_runner.rerun_from_stage.assert_not_called()
+
+
+def test_retranscribe_400_when_source_outside_folder(tmp_path: Path):
+    folder = tmp_path / "case"
+    folder.mkdir()
+    other = tmp_path / "elsewhere.mp3"
+    other.write_bytes(b"x")
+
+    handler = _post({"folder": str(folder), "source": str(other)})
     fake_runner = MagicMock()
     with patch("engine.server.get_pipeline_runner", return_value=fake_runner):
         handler.do_POST()
