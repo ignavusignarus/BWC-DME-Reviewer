@@ -102,6 +102,37 @@ describe('EditorApp', () => {
         await waitFor(() => expect(screen.getByText('officer.mp4')).toBeDefined());
     });
 
+    it('routes to reviewer view on first click when process returns completed (no-op path)', async () => {
+        // File is NOT pre-marked completed in the manifest — simulates a fresh session
+        // where the pipeline already ran on disk but the in-memory cache is empty.
+        const uncachedManifest = {
+            folder: 'C:/case-folder',
+            files: [
+                { basename: 'officer.mp4', path: 'C:/case-folder/officer.mp4', extension: 'mp4', mode: 'bwc', size_bytes: 1024 },
+            ],
+        };
+        // /api/source/process immediately reports completed (no-op submit).
+        global.fetch = setupFetchStub({ openManifest: uncachedManifest, initialStatus: 'completed' });
+        // Override the process stub to return completed instead of the default queued.
+        const baseFetch = global.fetch;
+        global.fetch = vi.fn((url, opts) => {
+            if (url.endsWith('/api/source/process')) {
+                return Promise.resolve({ ok: true, json: () => Promise.resolve({ status: 'completed' }) });
+            }
+            return baseFetch(url, opts);
+        });
+
+        render(<EditorApp />);
+
+        // Open folder → lands on project view
+        fireEvent.click(screen.getByRole('button', { name: /open folder/i }));
+        await waitFor(() => expect(screen.getByText('officer.mp4')).toBeDefined());
+
+        // First (and only) click on source → should route directly to reviewer
+        fireEvent.click(screen.getByText('officer.mp4'));
+        await waitFor(() => expect(screen.getByTestId('reviewer-placeholder')).toBeDefined());
+    });
+
     it('polls source state across stages and updates UI to completed', async () => {
         global.fetch = setupFetchStub({
             sequence: ['running:extract', 'running:normalize', 'completed'],

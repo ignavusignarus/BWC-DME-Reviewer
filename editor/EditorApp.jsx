@@ -71,8 +71,18 @@ export default function EditorApp() {
             if (isActiveStatus(resp.status)) {
                 startPolling(file.path);
             } else if (resp.status === 'completed') {
-                // If processing was a no-op (already completed), allow routing to reviewer next click.
-                setStatuses((s) => ({ ...s, [file.path]: 'completed' }));
+                // No-op submit: the source is already fully processed. Route to reviewer
+                // immediately rather than making the user click again.
+                setReviewSource(file);
+                setView('reviewer');
+                try {
+                    await apiPost('/api/project/reviewer-state', {
+                        folder: manifest.folder,
+                        last_source: file.path,
+                    });
+                } catch (err) {
+                    console.warn('[reviewer-state] save failed:', err);
+                }
             }
         } catch (err) {
             setStatuses((s) => ({ ...s, [file.path]: 'failed' }));
