@@ -115,7 +115,17 @@ export default function ReviewerView({ folder, source, onBack, manifest }) {
                         <TimelinePlaceholder />
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, borderLeft: '1px solid #21262d' }}>
-                        {staleTranscript && (
+                        {staleTranscript && retranscribeStatus === 'failed' && (
+                            <div style={{ background: '#161b22', borderBottom: '1px solid #f87171', color: '#f87171', padding: '6px 12px', fontSize: '0.78rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span>Re-transcribe failed — showing previous results</span>
+                                <button
+                                    onClick={() => { setStaleTranscript(false); setRetranscribeStatus(null); }}
+                                    style={{ background: 'transparent', color: '#f87171', border: '1px solid #f87171', borderRadius: 3, padding: '2px 8px', fontSize: '0.7rem', cursor: 'pointer' }}>
+                                    Dismiss
+                                </button>
+                            </div>
+                        )}
+                        {staleTranscript && retranscribeStatus !== 'failed' && (
                             <div style={{ background: '#161b22', borderBottom: '1px solid #d29922', color: '#d29922', padding: '6px 12px', fontSize: '0.78rem' }}>
                                 Re-transcribing — showing previous results
                             </div>
