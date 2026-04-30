@@ -286,5 +286,39 @@ class BWCRequestHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(payload)))
         self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Range")
         self.end_headers()
         self.wfile.write(payload)
+
+    def _serve_media(self, file_path: Path, fallback_mime: str) -> None:
+        """Stream a media file from disk with Range support and CORS headers."""
+
+        handler = self  # capture for the writer adapter
+
+        class _HandlerWriter:
+            def get_range_header(self):
+                return handler.headers.get("Range")
+
+            def send_response(self, status):
+                handler.send_response(status)
+
+            def send_header(self, key, value):
+                handler.send_header(key, value)
+                # Add CORS expose headers alongside each media response
+                if key == "Content-Type" and not getattr(self, "_cors_added", False):
+                    handler.send_header("Access-Control-Allow-Origin", "*")
+                    handler.send_header(
+                        "Access-Control-Expose-Headers",
+                        "Content-Range, Accept-Ranges, Content-Length",
+                    )
+                    self._cors_added = True
+
+            def end_headers(self):
+                handler.end_headers()
+
+            @property
+            def wfile(self):
+                return handler.wfile
+
+        _serve_media_to(_HandlerWriter(), file_path, fallback_mime)
