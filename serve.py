@@ -28,6 +28,16 @@ def main() -> int:
     )
     logger = logging.getLogger("bwc-clipper.serve")
 
+    # Make ffmpeg discoverable on PATH for libraries that shell out to it
+    # (whisperx, ffmpeg-python, etc.). Done here so it propagates to all
+    # threads / subprocesses spawned by the engine.
+    from engine.ffmpeg import prepend_ffmpeg_to_path
+    ffmpeg_dir = prepend_ffmpeg_to_path()
+    if ffmpeg_dir:
+        logger.info("ffmpeg discoverable on PATH: %s", ffmpeg_dir)
+    else:
+        logger.warning("ffmpeg not found — whisperx and other ffmpeg-using libs will fail")
+
     port = pick_free_port()
     logger.info("starting BWC Clipper engine version %s on port %d", BWC_CLIPPER_VERSION, port)
 

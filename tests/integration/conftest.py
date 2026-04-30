@@ -1,0 +1,67 @@
+"""Shared fixtures for ML pipeline integration tests.
+
+These tests run real models on real audio and require:
+- The ML runtime deps installed (deepfilternet, silero-vad, faster-whisper, whisperx)
+- A short sample WAV at ``tests/fixtures/integration/sample_short.wav``
+  (16 kHz mono PCM, ~10-30 seconds of speech). Sliced from the user's
+  Samples/DME Audio/ folder via ffmpeg; NOT committed (case-audio
+  privacy). Regenerate via:
+
+      ffmpeg -y -ss 60 -t 15 \\
+          -i "Samples/DME Audio/<some>.MP3" \\
+          -ac 1 -ar 16000 -c:a pcm_s16le \\
+          tests/fixtures/integration/sample_short.wav
+
+Tests skip with a clear message if the fixture is missing.
+"""
+from pathlib import Path
+
+import pytest
+
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+FIXTURE_PATH = REPO_ROOT / "tests" / "fixtures" / "integration" / "sample_short.wav"
+LONG_FIXTURE_PATH = REPO_ROOT / "tests" / "fixtures" / "integration" / "sample_long.wav"
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _ffmpeg_on_path():
+    """Make ffmpeg discoverable on PATH for libraries that shell out to it
+    during integration tests (e.g., whisperx.load_audio).
+
+    Mirrors what serve.py does at engine startup. Required because integration
+    tests don't go through the engine's normal startup path."""
+    from engine.ffmpeg import prepend_ffmpeg_to_path
+    result = prepend_ffmpeg_to_path()
+    if result is None:
+        # If ffmpeg isn't installed at all, integration tests can't run.
+        pytest.skip("ffmpeg not found on PATH or in BWC_CLIPPER_FFMPEG_DIR")
+    yield
+
+
+@pytest.fixture(scope="session")
+def sample_short_wav() -> Path:
+    if not FIXTURE_PATH.is_file():
+        pytest.skip(
+            f"Integration fixture missing: {FIXTURE_PATH}. "
+            f"See tests/integration/conftest.py for regeneration instructions."
+        )
+    return FIXTURE_PATH
+
+
+@pytest.fixture(scope="session")
+def sample_long_wav() -> Path:
+    """A ~90-second fixture, longer than the enhance stage's 60-second chunk
+    size, used to exercise the chunked-processing path that handles audio too
+    long for a single cuDNN call. Regenerate via:
+
+        ffmpeg -y -ss 30 -t 90 \\
+            -i "Samples/DME Audio/<some>.MP3" \\
+            -ac 1 -ar 16000 -c:a pcm_s16le \\
+            tests/fixtures/integration/sample_long.wav
+    """
+    if not LONG_FIXTURE_PATH.is_file():
+        pytest.skip(
+            f"Long integration fixture missing: {LONG_FIXTURE_PATH}. "
+            f"See tests/integration/conftest.py for regeneration instructions."
+        )
+    return LONG_FIXTURE_PATH

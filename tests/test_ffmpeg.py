@@ -223,3 +223,43 @@ def test_run_loudnorm_measure_invokes_ffmpeg_with_correct_filter(tmp_path: Path,
     # measurement pass writes to null sink
     assert "-f" in cmd
     assert "null" in cmd
+
+
+from engine.ffmpeg import prepend_ffmpeg_to_path
+
+
+def test_prepend_ffmpeg_to_path_inserts_dir(tmp_path: Path, monkeypatch):
+    fake = tmp_path / ("ffmpeg.exe" if os.name == "nt" else "ffmpeg")
+    fake.write_bytes(b"")
+    monkeypatch.setenv("BWC_CLIPPER_FFMPEG_DIR", str(tmp_path))
+    monkeypatch.setenv("PATH", "/some/other/dir")
+
+    result = prepend_ffmpeg_to_path()
+    assert result == tmp_path
+    parts = os.environ["PATH"].split(os.pathsep)
+    assert parts[0] == str(tmp_path)
+    assert "/some/other/dir" in parts
+
+
+def test_prepend_ffmpeg_to_path_idempotent(tmp_path: Path, monkeypatch):
+    fake = tmp_path / ("ffmpeg.exe" if os.name == "nt" else "ffmpeg")
+    fake.write_bytes(b"")
+    monkeypatch.setenv("BWC_CLIPPER_FFMPEG_DIR", str(tmp_path))
+    monkeypatch.setenv("PATH", "/some/other/dir")
+
+    prepend_ffmpeg_to_path()
+    path_after_first = os.environ["PATH"]
+    prepend_ffmpeg_to_path()
+    path_after_second = os.environ["PATH"]
+    # Idempotent — should not double-prepend.
+    assert path_after_first == path_after_second
+
+
+def test_prepend_ffmpeg_to_path_returns_none_when_missing(tmp_path: Path, monkeypatch):
+    """If ffmpeg can't be found anywhere, return None and leave PATH unchanged."""
+    monkeypatch.setenv("BWC_CLIPPER_FFMPEG_DIR", str(tmp_path / "nonexistent"))
+    monkeypatch.setenv("PATH", "/some/other/dir")
+
+    result = prepend_ffmpeg_to_path()
+    assert result is None
+    assert os.environ["PATH"] == "/some/other/dir"

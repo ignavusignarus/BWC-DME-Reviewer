@@ -1,5 +1,8 @@
 # Real case media — never commit
 Samples/
+
+# Integration test fixtures — sliced from real case audio, must not commit
+tests/fixtures/
 *.mp4
 *.mov
 *.mkv

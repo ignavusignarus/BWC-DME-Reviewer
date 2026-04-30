@@ -2,7 +2,7 @@
 
 Local-only desktop tool for plaintiff-side review and clipping of body-worn camera (BWC) video and defense medical exam (DME) audio. The app ingests a folder of media, runs a self-contained transcription pipeline (Whisper + VAD + diarization + speech enhancement) on the user's GPU, and presents a reviewer UI in which the auto-generated transcript serves as a navigation aid for finding moments of interest in long, often non-speech-dense recordings. The user creates and exports trial-ready clips. Clips never carry a transcript overlay — the transcript is a tool for the reviewer, not a deliverable on the clip.
 
-> **Status:** Milestone 4 of 8 complete — full pre-AI pipeline (Stages 1–4). After extracting audio (Stage 1) and normalizing it (Stage 2), the engine runs DeepFilterNet 3 speech enhancement (Stage 3) and Silero voice activity detection (Stage 4). VAD output is persisted as `speech-segments.json` per source. The UI status indicator cycles through `extracting…` → `normalizing…` → `enhancing…` → `detecting speech…` → `✓`.
+> **Status:** Milestone 5 of 8 complete — six-stage transcription pipeline. After audio prep (Stages 1-4) the engine runs faster-whisper large-v3 transcription (Stage 5, with VAD-filtered input) and WhisperX wav2vec2 word-level alignment (Stage 6). The canonical `transcript.json` artifact (per the brief's §4.8 schema) lands in the per-source cache, ready for the reviewer UI surfaces in M6. Status indicator cycles: `extracting…` → `normalizing…` → `enhancing…` → `detecting speech…` → `transcribing…` → `aligning words…` → `✓`. Verified end-to-end on a 60-minute DME exam in ~5 minutes total on RTX 5080.
 
 ## License
 

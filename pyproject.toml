@@ -13,14 +13,18 @@ requires-python = ">=3.11,<3.13"
 # Stage 3 (DeepFilterNet) and Stage 4 (Silero VAD) bring the engine's first
 # real runtime deps. torch is a transitive of deepfilternet (CPU wheel by
 # default; GPU acceleration is a manual reinstall — see README).
-# torch/torchaudio are pinned <2.6 because deepfilternet 0.5.x uses
-# torchaudio.backend.common which was removed in torchaudio 2.6+.
+# deepfilternet 0.5.x used torchaudio.backend.common.AudioMetaData (removed in
+# torchaudio 2.6+). That import is patched in df/io.py (try/except shim) so the
+# <2.6 upper-bound is no longer needed. Blackwell GPUs (sm_120, e.g. RTX 5080)
+# require torch>=2.7+cu128; the old 2.5.1+cu121 only covers up to sm_90.
 dependencies = [
+    "torch>=1.12",
+    "torchaudio>=0.12",
     "deepfilternet>=0.5",
     "silero-vad>=5.0",
     "soundfile>=0.12",
-    "torch>=1.12,<2.6",
-    "torchaudio>=0.12,<2.6",
+    "faster-whisper>=1.2",
+    "whisperx>=3.1",
 ]
 
 [project.optional-dependencies]
@@ -37,10 +41,11 @@ include = ["engine*"]
 [tool.pytest.ini_options]
 minversion = "7.0"
 testpaths = ["tests"]
-addopts = "-v --tb=short"
-timeout = 30
+addopts = "-v --tb=short -m 'not integration'"
+timeout = 60
 markers = [
     "smoke: end-to-end smoke tests that start subprocesses",
+    "integration: real-model integration tests (require ML deps + tests/fixtures/integration/sample_short.wav)",
 ]
 
 [tool.ruff]

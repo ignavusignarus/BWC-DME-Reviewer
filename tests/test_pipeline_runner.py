@@ -54,7 +54,9 @@ def test_runner_submit_pipeline_runs_extract_then_normalize(tmp_path: Path):
                                  "input_thresh": "-20", "target_offset": "0"}), \
              patch("engine.pipeline.normalize.run_ffmpeg", side_effect=_ffmpeg_writes_output), \
              patch("engine.pipeline.enhance.enhance_audio_file", side_effect=_enhance_writes), \
-             patch("engine.pipeline.vad.vad_audio_file", return_value=[{"start": 0.0, "end": 1.0}]):
+             patch("engine.pipeline.vad.vad_audio_file", return_value=[{"start": 0.0, "end": 1.0}]), \
+             patch("engine.pipeline.transcribe.transcribe_audio_file", return_value=[]), \
+             patch("engine.pipeline.align.align_segments", return_value=[]):
             probe_mock.return_value = [
                 {"index": 0, "codec_name": "aac", "sample_rate": 48000, "channels": 1, "duration_seconds": 1.0},
             ]
@@ -139,7 +141,9 @@ def test_runner_skips_extract_if_already_completed(tmp_path: Path):
                                  "input_thresh": "-20", "target_offset": "0"}), \
              patch("engine.pipeline.normalize.run_ffmpeg", side_effect=_ffmpeg_writes_output) as norm_mock, \
              patch("engine.pipeline.enhance.enhance_audio_file", side_effect=_enhance_writes), \
-             patch("engine.pipeline.vad.vad_audio_file", return_value=[{"start": 0.0, "end": 1.0}]):
+             patch("engine.pipeline.vad.vad_audio_file", return_value=[{"start": 0.0, "end": 1.0}]), \
+             patch("engine.pipeline.transcribe.transcribe_audio_file", return_value=[]), \
+             patch("engine.pipeline.align.align_segments", return_value=[]):
             # Need an extracted/track0.wav for normalize to read
             extracted = cache_dir / "extracted" / "track0.wav"
             extracted.parent.mkdir(parents=True, exist_ok=True)
@@ -190,7 +194,9 @@ def test_runner_get_status_returns_running_with_stage_name(tmp_path: Path):
                                  "input_thresh": "-20", "target_offset": "0"}), \
              patch("engine.pipeline.normalize.run_ffmpeg", side_effect=_ffmpeg_writes_output), \
              patch("engine.pipeline.enhance.enhance_audio_file", side_effect=_enhance_writes), \
-             patch("engine.pipeline.vad.vad_audio_file", return_value=[{"start": 0.0, "end": 1.0}]):
+             patch("engine.pipeline.vad.vad_audio_file", return_value=[{"start": 0.0, "end": 1.0}]), \
+             patch("engine.pipeline.transcribe.transcribe_audio_file", return_value=[]), \
+             patch("engine.pipeline.align.align_segments", return_value=[]):
             probe_mock.return_value = [
                 {"index": 0, "codec_name": "aac", "sample_rate": 48000, "channels": 1, "duration_seconds": 1.0},
             ]
@@ -231,7 +237,9 @@ def test_runner_runs_all_four_stages_in_order(tmp_path: Path):
                                  "input_thresh": "-20", "target_offset": "0"}), \
              patch("engine.pipeline.normalize.run_ffmpeg", side_effect=_writes_output), \
              patch("engine.pipeline.enhance.enhance_audio_file", side_effect=_enhance_writes), \
-             patch("engine.pipeline.vad.vad_audio_file", return_value=[{"start": 0.0, "end": 1.0}]):
+             patch("engine.pipeline.vad.vad_audio_file", return_value=[{"start": 0.0, "end": 1.0}]), \
+             patch("engine.pipeline.transcribe.transcribe_audio_file", return_value=[]), \
+             patch("engine.pipeline.align.align_segments", return_value=[]):
             probe_mock.return_value = [
                 {"index": 0, "codec_name": "aac", "sample_rate": 48000, "channels": 1, "duration_seconds": 1.0},
             ]
@@ -250,5 +258,67 @@ def test_runner_runs_all_four_stages_in_order(tmp_path: Path):
 
         # speech-segments.json was written
         assert (cache_dir / "speech-segments.json").is_file()
+    finally:
+        runner.shutdown()
+
+
+def test_runner_runs_all_six_stages_in_order(tmp_path: Path):
+    """Full pipeline through M5: extract → normalize → enhance → vad →
+    transcribe → align → completed."""
+    from engine.pipeline.runner import PipelineRunner
+
+    source = tmp_path / "x.mp4"
+    _touch(source, b"x")
+
+    def _writes_output(args, **kwargs):
+        Path(args[-1]).touch()
+        return ""
+
+    def _enhance_writes(in_path, out_path):
+        Path(out_path).parent.mkdir(parents=True, exist_ok=True)
+        Path(out_path).touch()
+
+    fake_segments = [
+        {"id": 0, "start": 0.5, "end": 3.2, "text": "hello world",
+         "avg_logprob": -0.4, "no_speech_prob": 0.1, "compression_ratio": 1.8},
+    ]
+
+    runner = PipelineRunner()
+    try:
+        with patch("engine.pipeline.extract.probe_audio_tracks") as probe_mock, \
+             patch("engine.pipeline.extract.run_ffmpeg", side_effect=_writes_output), \
+             patch("engine.pipeline.normalize.run_loudnorm_measure",
+                   return_value={"input_i": "-12", "input_tp": "-1", "input_lra": "5",
+                                 "input_thresh": "-20", "target_offset": "0"}), \
+             patch("engine.pipeline.normalize.run_ffmpeg", side_effect=_writes_output), \
+             patch("engine.pipeline.enhance.enhance_audio_file", side_effect=_enhance_writes), \
+             patch("engine.pipeline.vad.vad_audio_file", return_value=[{"start": 0.0, "end": 1.0}]), \
+             patch("engine.pipeline.transcribe.transcribe_audio_file", return_value=fake_segments), \
+             patch("engine.pipeline.align.align_segments",
+                   side_effect=lambda segs, path: [{**s, "words": [{"word": "hello", "start": 0.5, "end": 0.9, "score": 0.95}]} for s in segs]):
+            probe_mock.return_value = [
+                {"index": 0, "codec_name": "aac", "sample_rate": 48000, "channels": 1, "duration_seconds": 1.0},
+            ]
+            future = runner.submit_pipeline(tmp_path, source)
+            future.result(timeout=15)
+        assert runner.get_status(tmp_path, source) == "completed"
+
+        # Verify all six stages completed in pipeline-state.json
+        from engine.pipeline.state import load_state
+        from engine.source import source_cache_dir
+        cache_dir = source_cache_dir(tmp_path, source)
+        state = load_state(cache_dir)
+        for stage_name in ("extract", "normalize", "enhance", "vad", "transcribe", "align"):
+            assert state.stages.get(stage_name, {}).get("status") == "completed", \
+                f"stage {stage_name} not completed"
+
+        # transcript.json was written with correct top-level schema
+        import json as _json
+        transcript = _json.loads((cache_dir / "transcript.json").read_text(encoding="utf-8"))
+        assert transcript["schema_version"] == "1.0"
+        assert transcript["processing"]["whisper_model"] == "large-v3"
+        assert len(transcript["segments"]) == 1
+        assert transcript["segments"][0]["text"] == "hello world"
+        assert transcript["segments"][0]["low_confidence"] is False
     finally:
         runner.shutdown()

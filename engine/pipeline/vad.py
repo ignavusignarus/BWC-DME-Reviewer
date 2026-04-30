@@ -42,7 +42,12 @@ _silero_model = None
 
 
 def _get_silero_model():
-    """Lazy-load and cache the Silero VAD model."""
+    """Lazy-load and cache the Silero VAD model.
+
+    Silero VAD uses ONNX runtime by default and is fast on CPU; GPU
+    acceleration provides minimal speedup. No explicit device argument is
+    passed — leaving it CPU-only is intentional.
+    """
     global _silero_model
     if _silero_model is None:
         from silero_vad import load_silero_vad

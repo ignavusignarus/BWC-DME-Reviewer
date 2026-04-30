@@ -11,7 +11,9 @@ const STAGE_LABELS = {
     normalize: 'normalizing…',
     enhance: 'enhancing…',
     vad: 'detecting speech…',
-    // Future stages (M5+): transcribe, align, diarize, etc.
+    transcribe: 'transcribing…',
+    align: 'aligning words…',
+    // Future stages (M6+): diarize, wearer-detect.
 };
 
 const TERMINAL_LABELS = {
