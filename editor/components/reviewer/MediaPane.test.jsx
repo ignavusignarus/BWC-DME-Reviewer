@@ -25,7 +25,7 @@ describe('MediaPane', () => {
         render(withCtx({ path: '/x/y.mp3', mode: 'audio' }, <MediaPane {...NOOP_HANDLERS} />));
         expect(screen.getByRole('toolbar')).toBeDefined();
         expect(screen.queryByTestId('video-element')).toBeNull();
-        expect(screen.getByTestId('waveform-placeholder')).toBeDefined();
+        expect(screen.getByTestId('waveform-container')).toBeDefined();
     });
 
     it('renders video mode with <video> element pointing at /api/source/video', () => {
@@ -34,6 +34,6 @@ describe('MediaPane', () => {
         expect(video).toBeDefined();
         expect(video.getAttribute('src')).toMatch(/\/api\/source\/video/);
         // No waveform in video mode
-        expect(screen.queryByTestId('waveform-placeholder')).toBeNull();
+        expect(screen.queryByTestId('waveform-container')).toBeNull();
     });
 });
