@@ -18,6 +18,10 @@ VIDEO_EXTENSIONS = frozenset({"mp4", "mov", "mkv", "avi"})
 AUDIO_EXTENSIONS = frozenset({"mp3", "wav", "m4a", "flac"})
 MEDIA_EXTENSIONS = VIDEO_EXTENSIONS | AUDIO_EXTENSIONS
 
+# Dotted variants for use in HTTP header / suffix comparisons.
+AUDIO_EXTENSIONS_DOTTED = frozenset(f".{e}" for e in AUDIO_EXTENSIONS)
+VIDEO_EXTENSIONS_DOTTED = frozenset(f".{e}" for e in VIDEO_EXTENSIONS)
+
 
 def walk_media_files(folder: Path) -> list[Path]:
     """Recursively enumerate media files under ``folder``.

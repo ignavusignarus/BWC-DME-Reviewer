@@ -6,12 +6,9 @@ as the existing test_server_routes.py.
 from __future__ import annotations
 
 import io
-import json
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 from urllib.parse import urlencode
-
-import pytest
 
 from engine.server import BWCRequestHandler
 
@@ -117,5 +114,16 @@ def test_video_route_415_when_source_is_audio(tmp_path: Path):
     source.write_bytes(b"x")
     qs = urlencode({"folder": str(folder), "source": str(source)})
     handler = _make_handler("GET", f"/api/source/video?{qs}")
+    handler.do_GET()
+    assert _last_status(handler) == 415
+
+
+def test_audio_route_415_when_extension_unknown(tmp_path: Path):
+    folder = tmp_path / "case"
+    folder.mkdir()
+    source = folder / "exam.txt"  # not audio, not video
+    source.write_bytes(b"x")
+    qs = urlencode({"folder": str(folder), "source": str(source)})
+    handler = _make_handler("GET", f"/api/source/audio?{qs}")
     handler.do_GET()
     assert _last_status(handler) == 415

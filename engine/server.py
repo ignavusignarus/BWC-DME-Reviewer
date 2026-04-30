@@ -16,7 +16,11 @@ from typing import Callable
 from urllib.parse import parse_qs, urlsplit
 
 from engine.pipeline.runner import PipelineRunner
-from engine.project import open_project
+from engine.project import (
+    AUDIO_EXTENSIONS_DOTTED,
+    VIDEO_EXTENSIONS_DOTTED,
+    open_project,
+)
 from engine.version import get_version
 
 logger = logging.getLogger("bwc-clipper.server")
@@ -151,10 +155,6 @@ def reset_pipeline_runner() -> None:
 
 class BWCRequestHandler(BaseHTTPRequestHandler):
     """Routes requests to handler methods. JSON in, JSON out."""
-
-    # Mode determined by file extension; must agree with engine/project.py.
-    _AUDIO_EXTS = {".mp3", ".wav", ".m4a", ".flac", ".aac", ".ogg"}
-    _VIDEO_EXTS = {".mp4", ".mov", ".mkv", ".avi", ".webm"}
 
     def log_message(self, format, *args):
         logger.debug("%s - %s", self.address_string(), format % args)
@@ -311,13 +311,19 @@ class BWCRequestHandler(BaseHTTPRequestHandler):
 
         ext = source.suffix.lower()
         if kind == "audio":
-            if ext in BWCRequestHandler._VIDEO_EXTS:
+            if ext in VIDEO_EXTENSIONS_DOTTED:
                 self._send_json(415, {"error": "source is video; use /api/source/video"})
+                return
+            if ext not in AUDIO_EXTENSIONS_DOTTED:
+                self._send_json(415, {"error": "unsupported audio extension", "ext": ext})
                 return
             self._serve_media(source, fallback_mime="audio/wav")
         else:  # kind == "video"
-            if ext in BWCRequestHandler._AUDIO_EXTS:
+            if ext in AUDIO_EXTENSIONS_DOTTED:
                 self._send_json(415, {"error": "source is audio; use /api/source/audio"})
+                return
+            if ext not in VIDEO_EXTENSIONS_DOTTED:
+                self._send_json(415, {"error": "unsupported video extension", "ext": ext})
                 return
             self._serve_media(source, fallback_mime="video/mp4")
 
