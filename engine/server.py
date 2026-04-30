@@ -169,6 +169,7 @@ class BWCRequestHandler(BaseHTTPRequestHandler):
         return {
             "/api/project/open": self._handle_project_open,
             "/api/source/process": self._handle_source_process,
+            "/api/source/context": self._handle_source_context,
         }
 
     def do_GET(self):
@@ -288,6 +289,30 @@ class BWCRequestHandler(BaseHTTPRequestHandler):
         runner.submit_pipeline(Path(folder), Path(source))
         status = runner.get_status(Path(folder), Path(source))
         return 200, {"status": status}
+
+    def _handle_source_context(self, body: dict) -> tuple[int, dict]:
+        from engine.source import source_cache_dir
+
+        folder = body.get("folder")
+        source = body.get("source")
+        names = body.get("names")
+        locations = body.get("locations")
+        if not isinstance(folder, str) or not folder:
+            return 400, {"error": "missing 'folder'"}
+        if not isinstance(source, str) or not source:
+            return 400, {"error": "missing 'source'"}
+        if not isinstance(names, list) or not all(isinstance(n, str) for n in names):
+            return 400, {"error": "'names' must be a list of strings"}
+        if not isinstance(locations, list) or not all(isinstance(l, str) for l in locations):
+            return 400, {"error": "'locations' must be a list of strings"}
+
+        cache_dir = source_cache_dir(Path(folder), Path(source))
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        (cache_dir / "context.json").write_text(
+            json.dumps({"names": names, "locations": locations}, indent=2),
+            encoding="utf-8",
+        )
+        return 200, {"ok": True}
 
     def _handle_source_state(self, query: dict) -> tuple[int, dict]:
         folder_list = query.get("folder", [])
