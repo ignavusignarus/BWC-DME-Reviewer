@@ -22,6 +22,21 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 FIXTURE_PATH = REPO_ROOT / "tests" / "fixtures" / "integration" / "sample_short.wav"
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _ffmpeg_on_path():
+    """Make ffmpeg discoverable on PATH for libraries that shell out to it
+    during integration tests (e.g., whisperx.load_audio).
+
+    Mirrors what serve.py does at engine startup. Required because integration
+    tests don't go through the engine's normal startup path."""
+    from engine.ffmpeg import prepend_ffmpeg_to_path
+    result = prepend_ffmpeg_to_path()
+    if result is None:
+        # If ffmpeg isn't installed at all, integration tests can't run.
+        pytest.skip("ffmpeg not found on PATH or in BWC_CLIPPER_FFMPEG_DIR")
+    yield
+
+
 @pytest.fixture(scope="session")
 def sample_short_wav() -> Path:
     if not FIXTURE_PATH.is_file():

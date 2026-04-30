@@ -39,6 +39,36 @@ def find_ffprobe() -> Path:
     return _find_binary(FFPROBE_BINARY)
 
 
+def prepend_ffmpeg_to_path() -> Path | None:
+    """Ensure the ffmpeg directory is on ``PATH`` so libraries that shell out
+    to ``ffmpeg`` (e.g., whisperx, ffmpeg-python) find our bundled binary.
+
+    Idempotent — won't add the dir twice on repeated calls within the same
+    process. Returns the prepended directory, or ``None`` if no ffmpeg was
+    found anywhere.
+    """
+    try:
+        ffmpeg_path = find_ffmpeg()
+    except FileNotFoundError:
+        return None
+
+    ffmpeg_dir = ffmpeg_path.parent
+    current_path = os.environ.get("PATH", "")
+    parts = current_path.split(os.pathsep) if current_path else []
+    # Already prepended? (case-insensitive on Windows)
+    if any(_paths_equal(p, str(ffmpeg_dir)) for p in parts):
+        return ffmpeg_dir
+    os.environ["PATH"] = str(ffmpeg_dir) + os.pathsep + current_path
+    return ffmpeg_dir
+
+
+def _paths_equal(a: str, b: str) -> bool:
+    """Path equality that's case-insensitive on Windows."""
+    if os.name == "nt":
+        return os.path.normcase(os.path.normpath(a)) == os.path.normcase(os.path.normpath(b))
+    return os.path.normpath(a) == os.path.normpath(b)
+
+
 import subprocess
 
 
