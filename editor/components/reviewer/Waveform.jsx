@@ -8,13 +8,15 @@ export default function Waveform({ url }) {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
+        if (!url) return undefined;
         let cancelled = false;
+        let ctx = null;
         async function load() {
             setLoading(true);
             try {
                 const buf = await fetch(url).then(r => r.arrayBuffer());
                 if (cancelled) return;
-                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                ctx = new (window.AudioContext || window.webkitAudioContext)();
                 const decoded = await ctx.decodeAudioData(buf);
                 if (cancelled) return;
                 const channel = decoded.getChannelData(0);
@@ -34,6 +36,11 @@ export default function Waveform({ url }) {
             } catch (err) {
                 console.warn('[Waveform] decode failed:', err);
             } finally {
+                // Release the AudioContext so we don't pile up the browser's
+                // ~6 concurrent context cap when switching sources rapidly.
+                if (ctx && typeof ctx.close === 'function') {
+                    try { await ctx.close(); } catch (_) { /* already closed */ }
+                }
                 if (!cancelled) setLoading(false);
             }
         }

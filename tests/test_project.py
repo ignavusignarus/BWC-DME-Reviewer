@@ -185,3 +185,28 @@ def test_open_project_raises_on_missing_folder(tmp_path: Path):
     missing = tmp_path / "nope"
     with pytest.raises(FileNotFoundError):
         open_project(missing)
+
+
+def test_open_project_marks_files_with_completed_pipeline(tmp_path: Path):
+    """A source whose pipeline-state.json shows every stage COMPLETED gets
+    completed=True; a source with no cache dir gets completed=False."""
+    import json as _json
+    from engine.pipeline.runner import _PIPELINE_STAGES
+    from engine.source import source_cache_dir
+
+    _touch(tmp_path / "uncached.mp4")
+    cached = tmp_path / "cached.mp4"
+    _touch(cached)
+
+    cache_dir = source_cache_dir(tmp_path, cached)
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    state = {
+        "schema_version": 1,
+        "stages": {name: {"status": "completed"} for name, _ in _PIPELINE_STAGES},
+    }
+    (cache_dir / "pipeline-state.json").write_text(_json.dumps(state))
+
+    manifest = open_project(tmp_path)
+    by_basename = {f["basename"]: f for f in manifest["files"]}
+    assert by_basename["cached.mp4"]["completed"] is True
+    assert by_basename["uncached.mp4"]["completed"] is False

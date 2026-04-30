@@ -1,8 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import ReviewerView from './ReviewerView.jsx';
+import { _resetCachedBaseForTests } from '../../api.js';
 
 beforeEach(() => {
+    _resetCachedBaseForTests();
     globalThis.fetch = vi.fn(() => Promise.resolve({
         ok: true,
         json: () => Promise.resolve({
@@ -13,7 +15,7 @@ beforeEach(() => {
 });
 
 function renderReviewer() {
-    return render(<ReviewerView folder="/x" source={{ path: '/x/y.mp3', mode: 'audio' }} onBack={() => {}} manifest={{ folder: '/x', files: [] }} onSelectSource={() => {}} />);
+    return render(<ReviewerView folder="/x" source={{ path: '/x/y.mp3', mode: 'dme' }} onBack={() => {}} manifest={{ folder: '/x', files: [] }} onSelectSource={() => {}} />);
 }
 
 describe('hotkeys', () => {
@@ -27,17 +29,15 @@ describe('hotkeys', () => {
         expect(playSpy).toHaveBeenCalled();
     });
 
-    it('letter keys absorbed when textarea is focused', async () => {
+    it('keys absorbed when an input is focused', async () => {
         renderReviewer();
         await waitFor(() => screen.getByTestId('mediapane'));
         const audio = document.querySelector('audio,video');
         const playSpy = vi.spyOn(audio, 'play').mockResolvedValue();
-        // Focus the names textarea (rendered by ContextNamesPanel)
-        const namesArea = screen.getByLabelText(/^names$/i);
-        namesArea.focus();
-        fireEvent.keyDown(namesArea, { key: ' ', code: 'Space', target: namesArea });
-        // Window keydown still fires (event propagates), but the handler should bail
-        // due to tag check; play should NOT be called.
+        const search = screen.getByPlaceholderText(/search/i);
+        search.focus();
+        fireEvent.keyDown(search, { key: ' ', code: 'Space', target: search });
+        // Handler bails on INPUT/TEXTAREA tag check; play should NOT be called.
         expect(playSpy).not.toHaveBeenCalled();
     });
 
@@ -56,7 +56,6 @@ describe('hotkeys', () => {
         const evt = new KeyboardEvent('keydown', { key: '/', bubbles: true, cancelable: true });
         const spy = vi.spyOn(evt, 'preventDefault');
         window.dispatchEvent(evt);
-        // The search input should be the active element
         const search = screen.getByPlaceholderText(/search/i);
         expect(document.activeElement).toBe(search);
         expect(spy).toHaveBeenCalled();

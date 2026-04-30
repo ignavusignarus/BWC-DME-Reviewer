@@ -1,11 +1,9 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import { apiGet } from '../../api.js';
+import { apiGet, getBaseUrl } from '../../api.js';
 import { ReviewerContext } from './ReviewerContext.js';
 import TopBar from './TopBar.jsx';
 import MediaPane from './MediaPane.jsx';
 import TranscriptPanel from './TranscriptPanel.jsx';
-import ContextNamesPanel from './ContextNamesPanel.jsx';
-import { usePolling } from '../../usePolling.js';
 import Timeline from './Timeline.jsx';
 
 export default function ReviewerView({ folder, source, onBack, manifest, onSelectSource }) {
@@ -15,12 +13,17 @@ export default function ReviewerView({ folder, source, onBack, manifest, onSelec
     const [transcript, setTranscript] = useState(null);
     const [speechSegments, setSpeechSegments] = useState(null);
     const [error, setError] = useState(null);
+    const [engineBase, setEngineBase] = useState(null);
     const audioRef = useRef(null);
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
     const [playing, setPlaying] = useState(false);
-    const [retranscribeStatus, setRetranscribeStatus] = useState(null);
-    const [staleTranscript, setStaleTranscript] = useState(false);
+
+    useEffect(() => {
+        let cancelled = false;
+        getBaseUrl().then((base) => { if (!cancelled) setEngineBase(base); });
+        return () => { cancelled = true; };
+    }, []);
 
     useEffect(() => {
         let cancelled = false;
@@ -37,7 +40,12 @@ export default function ReviewerView({ folder, source, onBack, manifest, onSelec
         apiGet(`/api/source/transcript?${params.toString()}`)
             .then((doc) => {
                 if (cancelled) return;
-                setTranscript(doc.transcript);
+                // Defensive renumbering: faster-whisper's Segment.id is 0 for
+                // every segment when vad_filter=True, and older cached
+                // transcripts may carry the same defect. The DOM lookup that
+                // auto-scrolls the active segment relies on unique IDs.
+                const segs = doc.transcript.segments.map((s, i) => ({ ...s, id: i }));
+                setTranscript({ ...doc.transcript, segments: segs });
                 setSpeechSegments(doc.speech_segments);
             })
             .catch(() => {
@@ -47,32 +55,6 @@ export default function ReviewerView({ folder, source, onBack, manifest, onSelec
 
         return () => { cancelled = true; };
     }, [folder, source.path]);
-
-    const fetchStatus = useCallback(async () => {
-        const params = new URLSearchParams({ folder, source: source.path });
-        const resp = await apiGet(`/api/source/state?${params.toString()}`);
-        return resp.status === 'idle' ? null : resp.status;
-    }, [folder, source.path]);
-
-    const polling = usePolling(fetchStatus, retranscribeStatus !== null);
-
-    useEffect(() => {
-        if (polling.status) setRetranscribeStatus(polling.status);
-        if (polling.status === 'completed') {
-            const params = new URLSearchParams({ folder, source: source.path });
-            apiGet(`/api/source/transcript?${params.toString()}`).then((doc) => {
-                setTranscript(doc.transcript);
-                setSpeechSegments(doc.speech_segments);
-                setStaleTranscript(false);
-                setRetranscribeStatus(null);
-            });
-        }
-    }, [polling.status, folder, source.path]);
-
-    const onRetranscribeStarted = () => {
-        setStaleTranscript(true);
-        setRetranscribeStatus('queued');
-    };
 
     useEffect(() => {
         const t = setTimeout(() => setSearchQuery(searchInput), 100);
@@ -163,7 +145,8 @@ export default function ReviewerView({ folder, source, onBack, manifest, onSelec
         currentTime, duration, playing,
         seekTo, play, pause,
         folder, source,
-    }), [currentTime, duration, playing, seekTo, play, pause, folder, source]);
+        engineBase: engineBase || '',
+    }), [currentTime, duration, playing, seekTo, play, pause, folder, source, engineBase]);
 
     const onTimeUpdate = (e) => setCurrentTime(e.currentTarget.currentTime);
     const onLoadedMetadata = (e) => setDuration(e.currentTarget.duration);
@@ -171,7 +154,7 @@ export default function ReviewerView({ folder, source, onBack, manifest, onSelec
     const onPause = () => setPlaying(false);
 
     if (error) return <div style={{ padding: 24, color: '#f87171' }}>{error}</div>;
-    if (!transcript) return <div style={{ padding: 24, color: '#8b949e' }}>Loading transcript…</div>;
+    if (!transcript || engineBase === null) return <div style={{ padding: 24, color: '#8b949e' }}>Loading transcript…</div>;
 
     return (
         <ReviewerContext.Provider value={ctx}>
@@ -181,10 +164,9 @@ export default function ReviewerView({ folder, source, onBack, manifest, onSelec
                     source={source}
                     onBack={onBack}
                     onSelectSource={onSelectSource}
-                    retranscribeStatus={retranscribeStatus}
                 />
-                <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 360px', minHeight: 0 }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+                <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 360px', minHeight: 0 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0 }}>
                         <MediaPane
                             onTimeUpdate={onTimeUpdate}
                             onLoadedMetadata={onLoadedMetadata}
@@ -202,28 +184,7 @@ export default function ReviewerView({ folder, source, onBack, manifest, onSelec
                         />
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, borderLeft: '1px solid #21262d' }}>
-                        {staleTranscript && retranscribeStatus === 'failed' && (
-                            <div style={{ background: '#161b22', borderBottom: '1px solid #f87171', color: '#f87171', padding: '6px 12px', fontSize: '0.78rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span>Re-transcribe failed — showing previous results</span>
-                                <button
-                                    onClick={() => { setStaleTranscript(false); setRetranscribeStatus(null); }}
-                                    style={{ background: 'transparent', color: '#f87171', border: '1px solid #f87171', borderRadius: 3, padding: '2px 8px', fontSize: '0.7rem', cursor: 'pointer' }}>
-                                    Dismiss
-                                </button>
-                            </div>
-                        )}
-                        {staleTranscript && retranscribeStatus !== 'failed' && (
-                            <div style={{ background: '#161b22', borderBottom: '1px solid #d29922', color: '#d29922', padding: '6px 12px', fontSize: '0.78rem' }}>
-                                Re-transcribing — showing previous results
-                            </div>
-                        )}
                         <TranscriptPanel transcript={transcript} searchQuery={searchQuery} />
-                        <ContextNamesPanel
-                            folder={folder}
-                            sourcePath={source.path}
-                            onRetranscribeStarted={onRetranscribeStarted}
-                            disabled={retranscribeStatus !== null}
-                        />
                     </div>
                 </div>
             </div>

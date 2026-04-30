@@ -82,10 +82,14 @@ def _get_whisper_model():
     return _whisper_model
 
 
-def transcribe_audio_file(in_path: Path, initial_prompt: str | None = None) -> list[dict]:
+def transcribe_audio_file(in_path: Path) -> list[dict]:
     """Run faster-whisper over a 16 kHz mono WAV. Returns list of segment
     dicts in WhisperX-compatible format: ``{id, start, end, text,
     avg_logprob, no_speech_prob, compression_ratio}``.
+
+    Segment IDs are assigned sequentially (0, 1, 2, ...) — faster-whisper's
+    own ``Segment.id`` is always 0 when ``vad_filter=True``, which would
+    break the renderer's auto-scroll lookup if forwarded as-is.
 
     Tests mock this function — the underlying faster-whisper calls are not
     exercised in unit tests.
@@ -93,15 +97,12 @@ def transcribe_audio_file(in_path: Path, initial_prompt: str | None = None) -> l
     model = _get_whisper_model()
     segments_iter, _info = model.transcribe(
         str(in_path),
-        initial_prompt=initial_prompt,
         **WHISPER_DECODER_PARAMS,
     )
-    # faster-whisper returns an iterator of Segment objects. Convert to dicts
-    # in the format WhisperX align() expects.
     out = []
-    for s in segments_iter:
+    for i, s in enumerate(segments_iter):
         out.append({
-            "id": int(s.id),
+            "id": i,
             "start": float(s.start),
             "end": float(s.end),
             "text": s.text,
@@ -138,11 +139,7 @@ def run_transcribe_stage(cache_dir: Path) -> Path:
         if not in_path.is_file():
             raise FileNotFoundError(f"expected enhanced track missing: {in_path}")
 
-        # Optional initial prompt (per-source context names panel — populated
-        # by future milestones). Stored in cache_dir/context.json if present.
-        initial_prompt = _read_initial_prompt(cache_dir)
-
-        segments = transcribe_audio_file(in_path, initial_prompt=initial_prompt)
+        segments = transcribe_audio_file(in_path)
 
         out_path = cache_dir / "transcribe-raw.json"
         out_path.write_text(
@@ -172,30 +169,3 @@ def run_transcribe_stage(cache_dir: Path) -> Path:
         )
         save_state(cache_dir, state)
         raise
-
-
-def _read_initial_prompt(cache_dir: Path) -> str | None:
-    """Read context.json if present and assemble an initial_prompt string.
-
-    Schema (V1, additive — UI to write this lands in M6):
-        {"names": ["Officer Garcia", ...], "locations": ["Crenshaw Blvd", ...]}
-
-    Returns None if the file is missing or empty.
-    """
-    context_path = cache_dir / "context.json"
-    if not context_path.is_file():
-        return None
-    try:
-        ctx = json.loads(context_path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
-        return None
-    names = ctx.get("names") or []
-    locations = ctx.get("locations") or []
-    if not names and not locations:
-        return None
-    parts = ["This is audio from a recorded interaction."]
-    if names:
-        parts.append(f"Names mentioned may include: {', '.join(names)}.")
-    if locations:
-        parts.append(f"Locations include: {', '.join(locations)}.")
-    return " ".join(parts)

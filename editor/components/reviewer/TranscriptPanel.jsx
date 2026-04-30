@@ -5,8 +5,13 @@ import SearchHighlight from './SearchHighlight.jsx';
 const LOW_CONF_WORD_SCORE = 0.6;
 
 function fmtTs(seconds) {
-    const m = Math.floor(seconds / 60);
-    const s = Math.floor(seconds % 60);
+    const total = Math.max(0, Math.floor(seconds || 0));
+    const h = Math.floor(total / 3600);
+    const m = Math.floor((total % 3600) / 60);
+    const s = total % 60;
+    if (h > 0) {
+        return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    }
     return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 

@@ -8,8 +8,8 @@
 
 let _cachedBase = null;
 
-async function getBaseUrl() {
-    if (_cachedBase) return _cachedBase;
+export async function getBaseUrl() {
+    if (_cachedBase !== null) return _cachedBase;
     if (typeof window !== 'undefined' && window.electronAPI?.getEngineUrl) {
         _cachedBase = await window.electronAPI.getEngineUrl();
         return _cachedBase;

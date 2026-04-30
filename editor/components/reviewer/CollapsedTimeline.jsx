@@ -2,11 +2,10 @@ import React from 'react';
 
 export default function CollapsedTimeline({ cells, currentTime, onSeek, onSilenceClick, expandedSilenceIndex, searchMatches }) {
     return (
-        <div data-testid="timeline-collapsed" style={{ display: 'flex', height: 28, background: '#161b22', borderRadius: 3, overflow: 'hidden', position: 'relative' }}>
+        <div data-testid="timeline-collapsed" style={{ display: 'flex', height: 28, width: '100%', background: '#161b22', borderRadius: 3, overflow: 'hidden', position: 'relative' }}>
             {cells.map((c) => {
+                const widthStyle = `${c.widthPctCollapsed}%`;
                 if (c.kind === 'silence') {
-                    const isExpanded = c.silenceIndex === expandedSilenceIndex;
-                    const widthPx = isExpanded ? 80 : 24;
                     return (
                         <div
                             key={c.key}
@@ -14,11 +13,10 @@ export default function CollapsedTimeline({ cells, currentTime, onSeek, onSilenc
                             data-dur={`${Math.round(c.endSec - c.startSec)}s silence`}
                             onClick={(e) => { e.stopPropagation(); onSilenceClick(c.silenceIndex); }}
                             style={{
-                                flex: `0 0 ${widthPx}px`,
+                                width: widthStyle,
+                                flexShrink: 0,
                                 background: 'repeating-linear-gradient(45deg, #21262d 0, #21262d 3px, #161b22 3px, #161b22 6px)',
                                 cursor: 'pointer',
-                                borderLeft: '1px solid #0d1117',
-                                borderRight: '1px solid #0d1117',
                             }}
                             title={`${Math.round(c.endSec - c.startSec)}s silence`}
                         />
@@ -36,10 +34,10 @@ export default function CollapsedTimeline({ cells, currentTime, onSeek, onSilenc
                             onSeek(c.startSec + fraction * (c.endSec - c.startSec));
                         }}
                         style={{
-                            flex: `${c.flexBasis} 0 auto`,
+                            width: widthStyle,
+                            flexShrink: 0,
                             background: inThisCell ? '#58d6d6' : '#2ea3a3',
                             cursor: 'pointer',
-                            borderRight: '1px solid #0d1117',
                             position: 'relative',
                         }}
                     >

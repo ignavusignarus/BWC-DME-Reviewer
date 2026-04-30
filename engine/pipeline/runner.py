@@ -21,7 +21,7 @@ from engine.pipeline.align import run_align_stage
 from engine.pipeline.enhance import run_enhance_stage
 from engine.pipeline.extract import run_extract_stage
 from engine.pipeline.normalize import run_normalize_stage
-from engine.pipeline.state import PipelineState, StageStatus, load_state, save_state
+from engine.pipeline.state import StageStatus, load_state
 from engine.pipeline.transcribe import run_transcribe_stage
 from engine.pipeline.vad import run_vad_stage
 from engine.source import source_cache_dir
@@ -79,30 +79,6 @@ class PipelineRunner:
             future = self._executor.submit(_run_pipeline, source_path, cache_dir)
             self._jobs[key] = future
             return future
-
-    def rerun_from_stage(
-        self, stage_name: str, project_folder: Path, source_path: Path
-    ) -> Future:
-        """Clear `stage_name` and every subsequent stage's persisted state, then
-        submit the pipeline. The existing skip-when-COMPLETED logic causes
-        stages before `stage_name` to be skipped and the cleared stages to run.
-
-        Forward-compatible with M7+: any stage added after `align` in
-        _PIPELINE_STAGES will be cleared by rerun_from_stage("transcribe", ...).
-
-        Raises ValueError if `stage_name` is not in _PIPELINE_STAGES.
-        """
-        stage_names = [name for name, _ in _PIPELINE_STAGES]
-        if stage_name not in stage_names:
-            raise ValueError(f"unknown stage: {stage_name!r}")
-        cache_dir = source_cache_dir(project_folder, source_path)
-        state = load_state(cache_dir)
-        start_index = stage_names.index(stage_name)
-        new_stages = dict(state.stages)
-        for name in stage_names[start_index:]:
-            new_stages.pop(name, None)
-        save_state(cache_dir, PipelineState(schema_version=state.schema_version, stages=new_stages))
-        return self.submit_pipeline(project_folder, source_path)
 
     def get_status(self, project_folder: Path, source_path: Path) -> str:
         """Return one of: idle, queued, running:<stage>, completed, failed.

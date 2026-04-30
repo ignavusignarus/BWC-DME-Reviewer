@@ -4,11 +4,11 @@ import Transport from './Transport.jsx';
 import Waveform from './Waveform.jsx';
 
 export default function MediaPane({ onTimeUpdate, onLoadedMetadata, onPlay, onPause, searchQuery, onSearchQueryChange, matchCount, onSearchKeyDown }) {
-    const { source, folder, audioRef } = useReviewer();
-    const isVideo = source.mode === 'video';
+    const { source, folder, audioRef, engineBase } = useReviewer();
+    const isVideo = source.mode === 'bwc';
     const params = new URLSearchParams({ folder, source: source.path }).toString();
-    const audioUrl = `/api/source/audio?${params}`;
-    const videoUrl = `/api/source/video?${params}`;
+    const audioUrl = `${engineBase}/api/source/audio?${params}`;
+    const videoUrl = `${engineBase}/api/source/video?${params}`;
 
     return (
         <div data-testid="mediapane" style={{ flex: 1, background: '#010409', borderRight: '1px solid #21262d', display: 'flex', flexDirection: 'column', padding: 14, minHeight: 0 }}>

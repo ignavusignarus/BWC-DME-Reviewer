@@ -2,7 +2,7 @@
 
 Spin a real engine on a free port; hit it with urllib.request. Requires
 ffmpeg discoverable (BWC_CLIPPER_FFMPEG_DIR set in the integration
-fixture) and, for the retranscribe round-trip, the real ML stack.
+fixture).
 """
 from __future__ import annotations
 
@@ -69,72 +69,6 @@ def test_range_fetch_against_real_bwc_video():
         # And confirm a normal API call works fine right after
         with urllib.request.urlopen(f"{base}/api/health", timeout=5) as health:
             assert health.status == 200
-
-
-# ── Retranscribe round-trip ───────────────────────────────────────────────
-
-@pytest.mark.integration
-def test_context_then_retranscribe_round_trip(tmp_path: Path):
-    """Edit context, retranscribe, poll until complete, verify a context
-    name appears in the new transcript."""
-    fixture = Path("tests/fixtures/integration/sample_short.wav")
-    if not fixture.is_file():
-        pytest.skip(f"missing fixture: {fixture}")
-
-    project = tmp_path / "case"
-    project.mkdir()
-    source = project / "sample.wav"
-    source.write_bytes(fixture.read_bytes())
-
-    with _running_engine() as base:
-        # First-pass full pipeline
-        urllib.request.urlopen(
-            urllib.request.Request(
-                f"{base}/api/source/process",
-                data=json.dumps({"folder": str(project), "source": str(source)}).encode(),
-                headers={"Content-Type": "application/json"},
-                method="POST",
-            ),
-            timeout=600,
-        )
-        _poll_until(base, project, source, "completed", timeout_s=600)
-
-        # Edit context
-        urllib.request.urlopen(
-            urllib.request.Request(
-                f"{base}/api/source/context",
-                data=json.dumps({
-                    "folder": str(project),
-                    "source": str(source),
-                    "names": ["Aurelius"],
-                    "locations": [],
-                }).encode(),
-                headers={"Content-Type": "application/json"},
-                method="POST",
-            ),
-            timeout=10,
-        )
-
-        # Trigger re-transcribe
-        urllib.request.urlopen(
-            urllib.request.Request(
-                f"{base}/api/source/retranscribe",
-                data=json.dumps({"folder": str(project), "source": str(source)}).encode(),
-                headers={"Content-Type": "application/json"},
-                method="POST",
-            ),
-            timeout=10,
-        )
-        _poll_until(base, project, source, "completed", timeout_s=120)
-
-        # Fetch new transcript
-        qs = urlencode({"folder": str(project), "source": str(source)})
-        with urllib.request.urlopen(f"{base}/api/source/transcript?{qs}", timeout=10) as resp:
-            payload = json.loads(resp.read())
-        # We can't assert the model actually transcribed "Aurelius" — the fixture
-        # may not contain that audio. We just assert the round-trip worked and
-        # the new transcript exists with at least one segment.
-        assert payload["transcript"]["segments"]
 
 
 def _poll_until(base: str, folder: Path, source: Path, target: str, timeout_s: int) -> None:

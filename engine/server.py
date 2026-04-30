@@ -169,10 +169,17 @@ class BWCRequestHandler(BaseHTTPRequestHandler):
         return {
             "/api/project/open": self._handle_project_open,
             "/api/source/process": self._handle_source_process,
-            "/api/source/context": self._handle_source_context,
-            "/api/source/retranscribe": self._handle_source_retranscribe,
             "/api/project/reviewer-state": self._handle_reviewer_state_post,
         }
+
+    def do_OPTIONS(self):
+        # CORS preflight. Same headers _send_json uses on actual responses.
+        self.send_response(204)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Range")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
 
     def do_GET(self):
         split = urlsplit(self.path)
@@ -300,57 +307,6 @@ class BWCRequestHandler(BaseHTTPRequestHandler):
         runner = get_pipeline_runner()
         runner.submit_pipeline(Path(folder), Path(source))
         status = runner.get_status(Path(folder), Path(source))
-        return 200, {"status": status}
-
-    def _handle_source_context(self, body: dict) -> tuple[int, dict]:
-        from engine.source import source_cache_dir
-
-        folder = body.get("folder")
-        source = body.get("source")
-        names = body.get("names")
-        locations = body.get("locations")
-        if not isinstance(folder, str) or not folder:
-            return 400, {"error": "missing 'folder'"}
-        if not isinstance(source, str) or not source:
-            return 400, {"error": "missing 'source'"}
-        if not isinstance(names, list) or not all(isinstance(n, str) for n in names):
-            return 400, {"error": "'names' must be a list of strings"}
-        if not isinstance(locations, list) or not all(isinstance(loc, str) for loc in locations):
-            return 400, {"error": "'locations' must be a list of strings"}
-
-        folder_p = Path(folder).resolve()
-        source_p = Path(source).resolve()
-        try:
-            source_p.relative_to(folder_p)
-        except ValueError:
-            return 400, {"error": "source is not inside folder"}
-
-        cache_dir = source_cache_dir(folder_p, source_p)
-        cache_dir.mkdir(parents=True, exist_ok=True)
-        (cache_dir / "context.json").write_text(
-            json.dumps({"names": names, "locations": locations}, indent=2),
-            encoding="utf-8",
-        )
-        return 200, {"ok": True}
-
-    def _handle_source_retranscribe(self, body: dict) -> tuple[int, dict]:
-        folder = body.get("folder")
-        source = body.get("source")
-        if not isinstance(folder, str) or not folder:
-            return 400, {"error": "missing 'folder'"}
-        if not isinstance(source, str) or not source:
-            return 400, {"error": "missing 'source'"}
-
-        folder_p = Path(folder).resolve()
-        source_p = Path(source).resolve()
-        try:
-            source_p.relative_to(folder_p)
-        except ValueError:
-            return 400, {"error": "source is not inside folder"}
-
-        runner = get_pipeline_runner()
-        runner.rerun_from_stage("transcribe", folder_p, source_p)
-        status = runner.get_status(folder_p, source_p)
         return 200, {"status": status}
 
     def _handle_source_state(self, query: dict) -> tuple[int, dict]:

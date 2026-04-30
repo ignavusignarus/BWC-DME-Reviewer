@@ -27,9 +27,14 @@ describe('Transport', () => {
         expect(play).toHaveBeenCalled();
     });
 
-    it('shows current and total time', () => {
-        render(withCtx({ ...baseCtx, currentTime: 65, duration: 3600 }, <Transport />));
-        expect(screen.getByText('01:05 / 60:00')).toBeDefined();
+    it('shows current and total time (under 1 hour: mm:ss)', () => {
+        render(withCtx({ ...baseCtx, currentTime: 65, duration: 1800 }, <Transport />));
+        expect(screen.getByText('01:05 / 30:00')).toBeDefined();
+    });
+
+    it('shows hours when duration is >= 1 hour', () => {
+        render(withCtx({ ...baseCtx, currentTime: 3725, duration: 7200 }, <Transport />));
+        expect(screen.getByText('1:02:05 / 2:00:00')).toBeDefined();
     });
 
     it('±5 s skip respects duration bounds', () => {

@@ -99,7 +99,8 @@ def open_project(folder: Path) -> dict:
     1. Validates the folder exists and is a directory (via walk_media_files).
     2. Ensures .bwcclipper/ cache directory exists.
     3. Walks the folder for media files.
-    4. Returns a manifest dict for the HTTP endpoint.
+    4. For each file, checks pipeline-state.json to determine completion.
+    5. Returns a manifest dict for the HTTP endpoint.
 
     Manifest schema (V1):
         {
@@ -110,12 +111,19 @@ def open_project(folder: Path) -> dict:
                     "path": "<absolute path, forward-slashes>",
                     "extension": "mp4",          # original casing preserved
                     "mode": "bwc",                # bwc | dme
-                    "size_bytes": 123456789
+                    "size_bytes": 123456789,
+                    "completed": true,            # all stages completed
                 },
                 ...
             ]
         }
     """
+    # Local imports avoid a circular dependency with engine.pipeline.runner,
+    # which imports engine.project for AUDIO/VIDEO_EXTENSIONS_DOTTED.
+    from engine.pipeline.runner import _PIPELINE_STAGES
+    from engine.pipeline.state import StageStatus, load_state
+    from engine.source import source_cache_dir
+
     folder = Path(folder).resolve()
     # walk_media_files validates folder exists and is a directory.
     paths = walk_media_files(folder)
@@ -123,6 +131,14 @@ def open_project(folder: Path) -> dict:
 
     files = []
     for p in paths:
+        cache_dir = source_cache_dir(folder, p)
+        completed = False
+        if cache_dir.is_dir():
+            state = load_state(cache_dir)
+            completed = all(
+                state.stages.get(name, {}).get("status") == StageStatus.COMPLETED.value
+                for name, _ in _PIPELINE_STAGES
+            )
         files.append(
             {
                 "basename": p.name,
@@ -130,6 +146,7 @@ def open_project(folder: Path) -> dict:
                 "extension": p.suffix.lstrip("."),
                 "mode": detect_mode(p),
                 "size_bytes": p.stat().st_size,
+                "completed": completed,
             }
         )
 

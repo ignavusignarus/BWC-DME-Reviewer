@@ -6,8 +6,13 @@ import UncompressedTimeline from './UncompressedTimeline.jsx';
 
 function fmt(s) {
     if (!isFinite(s)) return '00:00';
-    const m = Math.floor(Math.max(0, s) / 60);
-    const sec = Math.floor(Math.max(0, s) % 60);
+    const total = Math.floor(Math.max(0, s));
+    const h = Math.floor(total / 3600);
+    const m = Math.floor((total % 3600) / 60);
+    const sec = total % 60;
+    if (h > 0) {
+        return `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+    }
     return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
 }
 

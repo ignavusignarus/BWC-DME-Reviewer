@@ -43,21 +43,20 @@ describe('Timeline', () => {
     it('clicking a silence bar expands it; second click collapses it', () => {
         render(withCtx(0, <Timeline speechSegments={SEGS} duration={20} searchMatches={[]} />));
         const silences = screen.getAllByTestId('silence-cell');
-        // Initial widths via inline style — we can read flex value or width
-        const initial = silences[0].style.flex;
+        const initial = silences[0].style.width;
         fireEvent.click(silences[0]);
-        expect(silences[0].style.flex).not.toBe(initial);  // expanded
+        expect(silences[0].style.width).not.toBe(initial);  // expanded
         fireEvent.click(silences[0]);
-        expect(silences[0].style.flex).toBe(initial);  // collapsed
+        expect(silences[0].style.width).toBe(initial);  // collapsed
     });
 
     it('Esc collapses an expanded silence', () => {
         render(withCtx(0, <Timeline speechSegments={SEGS} duration={20} searchMatches={[]} />));
         const silences = screen.getAllByTestId('silence-cell');
-        const initial = silences[0].style.flex;
+        const initial = silences[0].style.width;
         fireEvent.click(silences[0]);
-        expect(silences[0].style.flex).not.toBe(initial);
+        expect(silences[0].style.width).not.toBe(initial);
         fireEvent.keyDown(window, { key: 'Escape' });
-        expect(silences[0].style.flex).toBe(initial);
+        expect(silences[0].style.width).toBe(initial);
     });
 });

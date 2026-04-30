@@ -113,6 +113,17 @@ export default function EditorApp() {
                 setStatuses((s) => ({ ...s, [path]: resp.status }));
                 if (!isActiveStatus(resp.status)) {
                     stopPolling();
+                    if (resp.status === 'completed') {
+                        const file = manifest.files.find(f => f.path === path);
+                        if (file) {
+                            setReviewSource(file);
+                            setView('reviewer');
+                            apiPost('/api/project/reviewer-state', {
+                                folder: manifest.folder,
+                                last_source: file.path,
+                            }).catch((err) => console.warn('[reviewer-state] save failed:', err));
+                        }
+                    }
                 }
             } catch (err) {
                 console.warn('[poll] state fetch failed:', err);

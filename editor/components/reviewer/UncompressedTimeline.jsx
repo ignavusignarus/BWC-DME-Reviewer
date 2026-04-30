@@ -40,7 +40,7 @@ export default function UncompressedTimeline({ cells, durationSeconds, currentTi
                     <div key={c.key} style={{
                         position: 'absolute',
                         left: `${(c.startSec / durationSeconds) * 100}%`,
-                        width: `${c.widthPct}%`,
+                        width: `${c.widthPctUncompressed}%`,
                         top: 4,
                         height: 16,
                         background: '#2ea3a3',

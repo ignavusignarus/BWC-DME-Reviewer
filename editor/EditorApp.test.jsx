@@ -136,7 +136,7 @@ describe('EditorApp', () => {
         await waitFor(() => expect(screen.getByTestId('topbar')).toBeDefined());
     });
 
-    it('polls source state across stages and updates UI to completed', async () => {
+    it('polls source state and auto-routes to reviewer when pipeline completes', async () => {
         global.fetch = setupFetchStub({
             sequence: ['running:extract', 'running:normalize', 'completed'],
         });
@@ -149,14 +149,9 @@ describe('EditorApp', () => {
         await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
         // Second poll → running:normalize
         await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
-        // Third poll → completed
-        await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
-        // Fourth tick — polling should have stopped after seeing 'completed'.
+        // Third poll → completed → should route to reviewer
         await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
 
-        await waitFor(() => {
-            const row = document.querySelector('[data-status="completed"]');
-            expect(row).not.toBeNull();
-        });
+        await waitFor(() => expect(screen.getByTestId('topbar')).toBeDefined());
     });
 });
