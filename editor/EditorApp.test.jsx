@@ -27,6 +27,9 @@ function setupFetchStub({ initialStatus = 'idle', sequence = [], openManifest = 
         if (url.endsWith('/api/project/reviewer-state')) {
             return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
         }
+        if (url.includes('/api/source/transcript')) {
+            return Promise.resolve({ ok: true, json: () => Promise.resolve({ transcript: { schema_version: '1.0', source: {}, speakers: [], segments: [] }, speech_segments: [] }) });
+        }
         return Promise.reject(new Error('unexpected url: ' + url));
     });
 }
@@ -93,9 +96,9 @@ describe('EditorApp', () => {
         fireEvent.click(screen.getByRole('button', { name: /open folder/i }));
         await waitFor(() => expect(screen.getByText('officer.mp4')).toBeDefined());
 
-        // Click completed source → should route to reviewer placeholder
+        // Click completed source → should route to reviewer
         fireEvent.click(screen.getByText('officer.mp4'));
-        await waitFor(() => expect(screen.getByTestId('reviewer-placeholder')).toBeDefined());
+        await waitFor(() => expect(screen.getByTestId('topbar')).toBeDefined());
 
         // Back button returns to project view
         fireEvent.click(screen.getByRole('button', { name: /project/i }));
@@ -130,7 +133,7 @@ describe('EditorApp', () => {
 
         // First (and only) click on source → should route directly to reviewer
         fireEvent.click(screen.getByText('officer.mp4'));
-        await waitFor(() => expect(screen.getByTestId('reviewer-placeholder')).toBeDefined());
+        await waitFor(() => expect(screen.getByTestId('topbar')).toBeDefined());
     });
 
     it('polls source state across stages and updates UI to completed', async () => {
