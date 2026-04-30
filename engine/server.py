@@ -5,8 +5,11 @@ POST requests to small route tables. Each handler returns a tuple
 (status_code, body_dict). Future milestones extend the route tables.
 """
 
+import errno
 import json
 import logging
+import mimetypes
+import re
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from typing import Callable
@@ -17,6 +20,112 @@ from engine.project import open_project
 from engine.version import get_version
 
 logger = logging.getLogger("bwc-clipper.server")
+
+# ── Range-aware media streaming helpers ──────────────────────────────────
+
+_RANGE_RE = re.compile(r"bytes=(\d+)-(\d*)")
+_CHUNK_SIZE = 65536
+
+
+def _parse_range_header(header_value: str | None, file_size: int) -> tuple[int, int] | None:
+    """Parse a single-range Range header value.
+
+    Returns (start, end_inclusive) clamped to file bounds, or None if the
+    header is malformed, missing, or unsatisfiable (start past EOF).
+    """
+    if not header_value:
+        return None
+    match = _RANGE_RE.fullmatch(header_value.strip())
+    if not match:
+        return None
+    start = int(match.group(1))
+    end_str = match.group(2)
+    end = int(end_str) if end_str else file_size - 1
+    if start >= file_size:
+        return None
+    end = min(end, file_size - 1)
+    if end < start:
+        return None
+    return start, end
+
+
+def _serve_media_to(writer, media_file: Path, fallback_mime: str) -> None:
+    """Stream a media file with HTTP Range support.
+
+    `writer` provides:
+      - get_range_header() -> str | None
+      - send_response(int)
+      - send_header(str, str)
+      - end_headers()
+      - wfile (file-like with .write(bytes))
+
+    Designed to be called from BWCRequestHandler._serve_media (which
+    forwards self.headers / self.wfile / self.send_response). Tests
+    use a FakeWriter that captures the same surface.
+
+    Catches BrokenPipeError / ConnectionResetError / ConnectionAbortedError
+    plus Windows OSError errnos 10053/10054 silently — they fire constantly
+    during normal seek and the renderer is unaffected.
+    """
+    try:
+        file_size = media_file.stat().st_size
+    except OSError:
+        writer.send_response(404)
+        writer.end_headers()
+        return
+
+    content_type = mimetypes.guess_type(str(media_file))[0] or fallback_mime
+
+    range_header = writer.get_range_header()
+    parsed = _parse_range_header(range_header, file_size) if range_header else None
+
+    if range_header and parsed is None:
+        # Range header was present but unsatisfiable / malformed — RFC 7233 says 416.
+        writer.send_response(416)
+        writer.send_header("Content-Range", f"bytes */{file_size}")
+        writer.send_header("Content-Length", "0")
+        writer.end_headers()
+        return
+
+    try:
+        if parsed:
+            start, end = parsed
+            length = end - start + 1
+            writer.send_response(206)
+            writer.send_header("Content-Type", content_type)
+            writer.send_header("Content-Length", str(length))
+            writer.send_header("Content-Range", f"bytes {start}-{end}/{file_size}")
+            writer.send_header("Accept-Ranges", "bytes")
+            writer.send_header("Connection", "close")
+            writer.end_headers()
+            with open(media_file, "rb") as f:
+                f.seek(start)
+                remaining = length
+                while remaining > 0:
+                    chunk = f.read(min(_CHUNK_SIZE, remaining))
+                    if not chunk:
+                        break
+                    writer.wfile.write(chunk)
+                    remaining -= len(chunk)
+        else:
+            writer.send_response(200)
+            writer.send_header("Content-Type", content_type)
+            writer.send_header("Content-Length", str(file_size))
+            writer.send_header("Accept-Ranges", "bytes")
+            writer.send_header("Connection", "close")
+            writer.end_headers()
+            with open(media_file, "rb") as f:
+                while True:
+                    chunk = f.read(_CHUNK_SIZE)
+                    if not chunk:
+                        break
+                    writer.wfile.write(chunk)
+    except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+        return  # client disconnected — normal during seek
+    except OSError as exc:
+        if exc.errno in (errno.ECONNABORTED, errno.ECONNRESET, 10053, 10054):
+            return
+        raise
 
 
 # Module-level singleton runner shared across all request handler instances
