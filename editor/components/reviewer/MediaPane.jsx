@@ -3,7 +3,7 @@ import { useReviewer } from './ReviewerContext.js';
 import Transport from './Transport.jsx';
 import Waveform from './Waveform.jsx';
 
-export default function MediaPane({ onTimeUpdate, onLoadedMetadata, onPlay, onPause }) {
+export default function MediaPane({ onTimeUpdate, onLoadedMetadata, onPlay, onPause, searchQuery, onSearchQueryChange, matchCount, onSearchKeyDown }) {
     const { source, folder, audioRef } = useReviewer();
     const isVideo = source.mode === 'video';
     const params = new URLSearchParams({ folder, source: source.path }).toString();
@@ -39,6 +39,22 @@ export default function MediaPane({ onTimeUpdate, onLoadedMetadata, onPlay, onPa
                 </>
             )}
             <Transport />
+            <div style={{ marginTop: 14, display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input
+                    type="text"
+                    placeholder="Search transcript…"
+                    value={searchQuery || ''}
+                    onChange={(e) => onSearchQueryChange?.(e.target.value)}
+                    onKeyDown={onSearchKeyDown}
+                    aria-label="search transcript"
+                    style={{ flex: 1, background: '#0d1117', border: '1px solid #30363d', borderRadius: 3, color: '#c9d1d9', padding: '5px 9px', fontSize: '0.8rem', fontFamily: 'inherit' }}
+                />
+                {searchQuery && (
+                    <span style={{ color: '#6e7681', fontSize: '0.72rem', fontFamily: 'ui-monospace, monospace' }}>
+                        {matchCount} match{matchCount !== 1 ? 'es' : ''}
+                    </span>
+                )}
+            </div>
         </div>
     );
 }

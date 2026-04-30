@@ -9,7 +9,9 @@ import { usePolling } from '../../usePolling.js';
 import Timeline from './Timeline.jsx';
 
 export default function ReviewerView({ folder, source, onBack, manifest }) {
+    const [searchInput, setSearchInput] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
+    const [activeMatchIndex, setActiveMatchIndex] = useState(0);
     const [transcript, setTranscript] = useState(null);
     const [speechSegments, setSpeechSegments] = useState(null);
     const [error, setError] = useState(null);
@@ -72,12 +74,35 @@ export default function ReviewerView({ folder, source, onBack, manifest }) {
         setRetranscribeStatus('queued');
     };
 
+    useEffect(() => {
+        const t = setTimeout(() => setSearchQuery(searchInput), 100);
+        return () => clearTimeout(t);
+    }, [searchInput]);
+
+    const searchMatches = useMemo(() => {
+        if (!searchQuery || !transcript) return [];
+        const q = searchQuery.toLowerCase();
+        return transcript.segments
+            .filter(s => s.text.toLowerCase().includes(q))
+            .map(s => ({ segmentId: s.id, start: s.start, end: s.end }));
+    }, [searchQuery, transcript]);
+
     const seekTo = useCallback((seconds) => {
         if (!audioRef.current) return;
         audioRef.current.currentTime = Math.max(0, Math.min(seconds, audioRef.current.duration || 0));
     }, []);
     const play = useCallback(() => audioRef.current?.play(), []);
     const pause = useCallback(() => audioRef.current?.pause(), []);
+
+    const onSearchKeyDown = useCallback((e) => {
+        if (e.key !== 'Enter' || !searchMatches.length) return;
+        e.preventDefault();
+        const next = e.shiftKey
+            ? (activeMatchIndex - 1 + searchMatches.length) % searchMatches.length
+            : (activeMatchIndex + 1) % searchMatches.length;
+        setActiveMatchIndex(next);
+        seekTo(searchMatches[next].start);
+    }, [searchMatches, activeMatchIndex, seekTo]);
 
     const ctx = useMemo(() => ({
         audioRef,
@@ -111,11 +136,15 @@ export default function ReviewerView({ folder, source, onBack, manifest }) {
                             onLoadedMetadata={onLoadedMetadata}
                             onPlay={onPlay}
                             onPause={onPause}
+                            searchQuery={searchInput}
+                            onSearchQueryChange={setSearchInput}
+                            matchCount={searchMatches.length}
+                            onSearchKeyDown={onSearchKeyDown}
                         />
                         <Timeline
                             speechSegments={speechSegments || []}
                             duration={transcript?.source?.duration_seconds || 0}
-                            searchMatches={[]}
+                            searchMatches={searchMatches}
                         />
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, borderLeft: '1px solid #21262d' }}>
