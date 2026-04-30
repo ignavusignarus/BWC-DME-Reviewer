@@ -6,6 +6,7 @@ as the existing test_server_routes.py.
 from __future__ import annotations
 
 import io
+import json
 from pathlib import Path
 from unittest.mock import MagicMock
 from urllib.parse import urlencode
@@ -127,3 +128,52 @@ def test_audio_route_415_when_extension_unknown(tmp_path: Path):
     handler = _make_handler("GET", f"/api/source/audio?{qs}")
     handler.do_GET()
     assert _last_status(handler) == 415
+
+
+# ── /api/source/transcript ────────────────────────────────────────────────
+
+def _write_pipeline_artifacts(folder: Path, source: Path) -> None:
+    """Mimic the on-disk artifact layout that the routes read from."""
+    from engine.source import source_cache_dir
+    cache_dir = source_cache_dir(folder, source)
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    transcript = {
+        "schema_version": "1.0",
+        "source": {"path": str(source).replace("\\", "/"), "duration_seconds": 60.0},
+        "speakers": [],
+        "segments": [
+            {"id": 0, "start": 1.0, "end": 4.0, "text": "Hello", "words": [], "low_confidence": False},
+        ],
+    }
+    speech_segments = {"tracks": [[{"start": 1.0, "end": 4.0}]]}
+    (cache_dir / "transcript.json").write_text(json.dumps(transcript), encoding="utf-8")
+    (cache_dir / "speech-segments.json").write_text(json.dumps(speech_segments), encoding="utf-8")
+
+
+def test_transcript_route_returns_combined_payload(tmp_path: Path):
+    folder = tmp_path / "case"
+    folder.mkdir()
+    source = folder / "exam.mp3"
+    source.write_bytes(b"x")
+    _write_pipeline_artifacts(folder, source)
+
+    qs = urlencode({"folder": str(folder), "source": str(source)})
+    handler = _make_handler("GET", f"/api/source/transcript?{qs}")
+    handler.do_GET()
+
+    assert _last_status(handler) == 200
+    body = json.loads(handler.wfile.getvalue())
+    assert body["transcript"]["segments"][0]["text"] == "Hello"
+    assert body["speech_segments"] == [{"start": 1.0, "end": 4.0}]
+
+
+def test_transcript_route_404_when_artifacts_missing(tmp_path: Path):
+    folder = tmp_path / "case"
+    folder.mkdir()
+    source = folder / "exam.mp3"
+    source.write_bytes(b"x")  # source exists but no cache dir
+
+    qs = urlencode({"folder": str(folder), "source": str(source)})
+    handler = _make_handler("GET", f"/api/source/transcript?{qs}")
+    handler.do_GET()
+    assert _last_status(handler) == 404

@@ -201,6 +201,16 @@ class BWCRequestHandler(BaseHTTPRequestHandler):
             self._handle_media_route(parse_qs(split.query), kind="video")
             return
 
+        if split.path == "/api/source/transcript":
+            try:
+                status, body = self._handle_transcript(parse_qs(split.query))
+            except Exception as exc:
+                logger.exception("/api/source/transcript crashed")
+                self._send_json(500, {"error": "internal", "detail": str(exc)})
+                return
+            self._send_json(status, body)
+            return
+
         self._send_json(404, {"error": "not found", "path": split.path})
 
     def do_POST(self):
@@ -288,6 +298,28 @@ class BWCRequestHandler(BaseHTTPRequestHandler):
             Path(folder_list[0]), Path(source_list[0])
         )
         return 200, {"status": status}
+
+    def _handle_transcript(self, query: dict) -> tuple[int, dict]:
+        from engine.source import source_cache_dir
+
+        folder_list = query.get("folder", [])
+        source_list = query.get("source", [])
+        if not folder_list or not source_list:
+            return 400, {"error": "missing 'folder' or 'source'"}
+        folder = Path(folder_list[0]).resolve()
+        source = Path(source_list[0]).resolve()
+        cache_dir = source_cache_dir(folder, source)
+        transcript_path = cache_dir / "transcript.json"
+        speech_segments_path = cache_dir / "speech-segments.json"
+        if not transcript_path.is_file() or not speech_segments_path.is_file():
+            return 404, {"error": "transcript or speech-segments missing"}
+        transcript = json.loads(transcript_path.read_text(encoding="utf-8"))
+        speech_segments_doc = json.loads(speech_segments_path.read_text(encoding="utf-8"))
+        tracks = speech_segments_doc.get("tracks", [])
+        return 200, {
+            "transcript": transcript,
+            "speech_segments": tracks[0] if tracks else [],
+        }
 
     def _handle_media_route(self, query: dict, kind: str) -> None:
         folder_list = query.get("folder", [])
