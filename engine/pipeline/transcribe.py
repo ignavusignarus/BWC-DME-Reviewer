@@ -42,6 +42,21 @@ WHISPER_DECODER_PARAMS = {
     "suppress_tokens": [-1],
     "without_timestamps": False,
     "word_timestamps": False,  # WhisperX align in Stage 6 produces these
+    # Skip non-speech regions before Whisper inference. faster-whisper runs
+    # Silero VAD internally on the audio, then transcribes only the speech
+    # segments. Without this, long stretches of silence (typical in DME
+    # audio between exam questions) waste compute AND trigger hallucinations
+    # like "Thanks for watching" / "Please subscribe". Stage 4's separate
+    # Silero pass writes speech-segments.json for the UI's collapsed-silence
+    # timeline; the VAD here is a separate (parameter-matched) Silero
+    # invocation internal to faster-whisper. Brief §4.4 parameters applied.
+    "vad_filter": True,
+    "vad_parameters": {
+        "threshold": 0.5,
+        "min_speech_duration_ms": 250,
+        "min_silence_duration_ms": 300,
+        "speech_pad_ms": 200,
+    },
 }
 
 WHISPER_MODEL_NAME = "large-v3"
