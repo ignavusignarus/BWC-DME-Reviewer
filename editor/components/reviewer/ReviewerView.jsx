@@ -11,7 +11,7 @@ import Timeline from './Timeline.jsx';
 export default function ReviewerView({ folder, source, onBack, manifest }) {
     const [searchInput, setSearchInput] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
-    const [activeMatchIndex, setActiveMatchIndex] = useState(0);
+    const [activeMatchIndex, setActiveMatchIndex] = useState(-1);
     const [transcript, setTranscript] = useState(null);
     const [speechSegments, setSpeechSegments] = useState(null);
     const [error, setError] = useState(null);
@@ -86,6 +86,10 @@ export default function ReviewerView({ folder, source, onBack, manifest }) {
             .filter(s => s.text.toLowerCase().includes(q))
             .map(s => ({ segmentId: s.id, start: s.start, end: s.end }));
     }, [searchQuery, transcript]);
+
+    useEffect(() => {
+        setActiveMatchIndex(-1);
+    }, [searchQuery]);
 
     const seekTo = useCallback((seconds) => {
         if (!audioRef.current) return;
